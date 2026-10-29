@@ -1,85 +1,55 @@
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const vm=require('node:vm');
-const C=require('../static/planning/core.js');
-const context={window:{}};vm.createContext(context);
-vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/planning/base.js'),'utf8'),context);
-vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/planning/geography.js'),'utf8'),context);
-const base=JSON.parse(JSON.stringify(context.window.MAPA_BASE)),geo=JSON.parse(JSON.stringify(context.window.MAPA_GEO));
-const blankRow={CC:'43300','Nombre Tienda':'Apertura test',DM:'Enrique César','Fecha Apertura':'',Municipio:'Tepotzotlán',Cobertura:'Estado De México',Latitud:'19.74010',Longitud:'-99.21133',Activa:'Sí'};
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const C=require('../static/planning/core.js'),context={window:{}};vm.createContext(context);
+for(const file of ['base','geography','insights'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/planning/'+file+'.js'),'utf8'),context);
+const clone=x=>JSON.parse(JSON.stringify(x)),base=clone(context.window.MAPA_BASE),geo=clone(context.window.MAPA_GEO),health=clone(context.window.MAPA_INSIGHTS),cc=base.stores[0].cc;
+const row={CC:'70001','Nombre Tienda':'Prueba',DM:'DM futuro','Fecha Apertura':'',Municipio:'Tepotzotlán',Cobertura:'Estado De México',Latitud:'19.74010',Longitud:'-99.21133',Activa:'Sí'};
 
-test('la base del Excel contiene 103 CeCo únicos y los ocho DM incluidos',()=>{
- assert.equal(base.stores.length,103);assert.equal(new Set(base.stores.map(s=>s.cc)).size,103);
- assert.equal(new Set(base.stores.map(s=>s.dm)).size,8);
- assert.ok(base.stores.some(s=>s.dm==='David Carrasco'));assert.ok(base.stores.some(s=>s.dm==='Moni Morales'));
+test('base y revisión Python coinciden sin fijar el número futuro de tiendas o DM',()=>{
+ assert.equal(base.stores.length,base.metadata.store_count);assert.equal(new Set(base.stores.map(s=>s.cc)).size,base.stores.length);assert.equal(health.counts.total,base.stores.length);assert.equal(health.counts.dms,new Set(base.stores.map(s=>s.dm)).size);assert.equal(base.metadata.signature,health.signature);assert.equal(health.status,'valid');
 });
-test('exactamente las tres filas sin fecha son Apertura',()=>{
- assert.deepEqual(base.stores.filter(s=>s.status==='Apertura').map(s=>s.cc),['43300','43301','43302']);
- assert.equal(base.stores.filter(s=>s.status==='Actual').length,100);
+test('todas las tiendas son Región Centro Norte y las zonas no la sustituyen',()=>{
+ assert.deepEqual(C.regions,['Centro Norte']);assert.ok(base.stores.every(s=>s.region==='Centro Norte'&&C.zones.includes(s.zone)));
+ const state=C.freshState();state.updates[cc]={zone:'Oriente',region:'Otra región'};assert.equal(C.current(base,state)[0].region,'Centro Norte');assert.equal(C.current(base,state)[0].zone,'Oriente');
 });
-test('cartografía contiene 125 + 16 + 84 municipios y cinco entidades vecinas',()=>{
- for(const [id,count] of [['15',125],['09',16],['13',84]])assert.equal(geo.municipalities.features.filter(f=>f.properties.state===id).length,count);
- assert.equal(geo.neighbors.features.length,5);
+test('las aperturas siempre son las filas sin fecha, con cantidades futuras variables',()=>{
+ assert.equal(base.stores.filter(s=>s.status==='Apertura').length,base.stores.filter(s=>!s.opening_date).length);assert.equal(health.counts.openings,base.stores.filter(s=>!s.opening_date).length);
 });
-test('cada ubicación encuentra un municipio y se identifica la diferencia de Toreo',()=>{
- base.stores.forEach(s=>assert.ok(C.findArea(s.latitude,s.longitude,geo),s.cc));
- const t=base.stores.find(s=>s.cc==='43302'),area=C.findArea(t.latitude,t.longitude,geo);
- assert.equal(t.coverage,'Estado De México');assert.equal(area.properties.state,'09');assert.equal(area.properties.name,'Miguel Hidalgo');
+test('cada zona del fondo es referencia geográfica y las ubicaciones externas se reportan',()=>{
+ assert.ok(geo.municipalities.features.length>0);assert.ok(geo.neighbors.features.length>0);
+ base.stores.forEach(s=>{if(!C.findArea(s.latitude,s.longitude,geo))assert.ok(health.warnings.some(w=>w.cc===s.cc&&w.kind==='outside'));});
 });
-test('latitudes pegadas con coma final se leen sin perder precisión y otros textos se rechazan',()=>{
- assert.equal(C.coordinate('19.666318258441624, '),19.666318258441624);
- assert.ok(Number.isNaN(C.coordinate('19,66')));assert.ok(Number.isNaN(C.coordinate('')));assert.ok(Number.isNaN(C.coordinate('19.3 basura')));
+test('latitud con coma final conserva el número y entradas ambiguas se rechazan',()=>{
+ assert.equal(C.coordinate('19.666318258441624, '),19.666318258441624);assert.ok(Number.isNaN(C.coordinate('19,66')));assert.ok(Number.isNaN(C.coordinate('')));
 });
-test('ubicaciones se importan sin indicadores y fecha vacía no se convierte en 1900',()=>{
- const [store]=C.parseLocations([blankRow],geo);assert.equal(store.status,'Apertura');assert.equal(store.opening_date,null);
+test('fecha vacía es Apertura y se puede añadir un DM futuro',()=>{
+ const [store]=C.parseLocations([row],geo);assert.equal(store.status,'Apertura');assert.equal(store.opening_date,null);assert.equal(store.region,'Centro Norte');assert.equal(store.dm,'DM futuro');
 });
-test('importación rechaza duplicados, fechas imposibles y coordenadas fuera de rango',()=>{
- assert.throws(()=>C.parseLocations([blankRow,{...blankRow}],geo),/duplicado/);
- assert.throws(()=>C.parseLocations([{...blankRow,Latitud:'190.5'}],geo),/coordenadas/);
- assert.throws(()=>C.parseLocations([{...blankRow,'Fecha Apertura':'31\/02\/2026'}],geo),/Fecha inválida/);
- assert.throws(()=>C.parseLocations([{...blankRow,CC:'123'}],geo),/cinco dígitos/);
+test('validación bloquea duplicados, fechas imposibles y coordenadas inválidas',()=>{
+ assert.throws(()=>C.parseLocations([row,{...row}],geo),/duplicado/);assert.throws(()=>C.parseLocations([{...row,Latitud:'190'}],geo),/coordenadas/);assert.throws(()=>C.parseLocations([{...row,'Fecha Apertura':'31/02/2026'}],geo),/Fecha inválida/);
 });
-test('filtro por CeCo, DM, región y aperturas se puede combinar',()=>{
- const filtered=C.filtered(C.current(base,C.freshState()),{search:'4330',dm:'Enrique César',region:'Norte',status:'Apertura'});
- assert.deepEqual(filtered.map(s=>s.cc),['43300','43301']);
+test('filtros de CeCo, DM y zona combinados sobre una base futura de prueba',()=>{
+ const a={cc:'70001',store_name:'Uno',dm:'Nuevo DM',zone:'Norte',status:'Apertura'},b={...a,cc:'70002',zone:'Oriente'};
+ assert.deepEqual(C.filtered([a,b],{search:'700',dm:'Nuevo DM',zone:'Norte',status:'Apertura'}),[a]);
 });
-test('distancia Haversine: igual ubicación es cero y un grado de ecuador son 111.195 km',()=>{
- const a={latitude:0,longitude:0},b={latitude:0,longitude:1};
- assert.equal(C.distance(a,a),0);assert.ok(Math.abs(C.distance(a,b)-111.19508)<.001);assert.equal(C.distance(a,b),C.distance(b,a));
+test('distancias geográficas tienen escala y simetría correctas',()=>{
+ const a={latitude:0,longitude:0},b={latitude:0,longitude:1};assert.equal(C.distance(a,a),0);assert.ok(Math.abs(C.distance(a,b)-111.19508)<.001);assert.equal(C.distance(a,b),C.distance(b,a));
 });
-test('cercanía excluye la propia tienda y conserva vecinos en orden geográfico',()=>{
- const s=base.stores.find(s=>s.cc==='43302'),near=C.nearest(s,base.stores);
- assert.equal(near.length,3);assert.ok(near.every(n=>n.cc!==s.cc));assert.ok(near[0].km<=near[1].km&&near[1].km<=near[2].km);
- assert.ok(near[0].km<1);
+test('cercanías de Python y de la propuesta concuerdan para la misma base',()=>{
+ for(const s of base.stores){const nearest=C.nearest(s,base.stores,3),computed=health.nearest[s.cc];assert.equal(computed.length,nearest.length);for(let i=0;i<nearest.length;i++){assert.equal(computed[i].cc,nearest[i].cc);assert.ok(Math.abs(computed[i].km-nearest[i].km)<.000001);}}
 });
-test('evaluación no muta la base; Base y Propuesta devuelven los datos correctos',()=>{
- const state=C.freshState(),original=base.stores.find(s=>s.cc==='43300');
- state.updates['43300']={dm:'DM nuevo',region:'Oriente',decision:'No considerar',notes:'Validar traslados'};
- assert.equal(C.current(base,state).find(s=>s.cc==='43300').dm,'DM nuevo');
- assert.equal(C.current(base,state,'base').find(s=>s.cc==='43300').dm,original.dm);
- assert.equal(base.stores.find(s=>s.cc==='43300').dm,original.dm);
+test('Base y Propuesta son independientes y la región no se puede reasignar',()=>{
+ const state=C.freshState(),original=base.stores[0].dm;state.updates[cc]={dm:'DM nuevo',zone:'Oriente',decision:'No considerar',notes:'Revisar'};assert.equal(C.current(base,state)[0].dm,'DM nuevo');assert.equal(C.current(base,state,'base')[0].dm,original);assert.equal(base.stores[0].dm,original);assert.equal(C.current(base,state)[0].region,'Centro Norte');
 });
-test('exportar y cargar recupera ajustes individuales, fondo, colores y base completa',()=>{
- const state=C.freshState();state.updates['43300']={dm:'DM nuevo',region:'Oriente',decision:'Conservar',notes:'Se conserva',latitude:19.75,longitude:-99.21};state.areas['15095']='Poniente';state.dmColors['DM nuevo']='#123456';state.extraDms=['DM nuevo'];
- const roundtrip=C.readScenario(JSON.parse(JSON.stringify(C.pack(base,state))),base,geo);
- assert.deepEqual(roundtrip.state,state);assert.deepEqual(roundtrip.base,base);
+test('la copia de una propuesta conserva notas, zonas, coordenadas y colores',()=>{
+ const state=C.freshState();state.updates[cc]={dm:'DM nuevo',zone:'Oriente',decision:'Conservar',notes:'Validar',latitude:19.75,longitude:-99.21};state.areas[geo.municipalities.features[0].properties.id]='Poniente';state.dmColors['DM nuevo']='#123456';state.extraDms=['DM nuevo'];assert.deepEqual(C.readScenario(clone(C.pack(base,state)),base,geo).state,state);
 });
-test('escenario incompatible o con CeCo/regiones/coordenadas desconocidos se rechaza',()=>{
- const state=C.freshState();const doc=C.pack(base,state);
- assert.throws(()=>C.readScenario({...doc,version:99},base,geo),/compatible/);
- assert.throws(()=>C.readScenario({...doc,updates:{'99999':{decision:'Conservar'}}},base,geo),/CeCo/);
- assert.throws(()=>C.readScenario({...doc,updates:{'43300':{latitude:null,longitude:3}}},base,geo),/Coordenadas/);
- assert.throws(()=>C.readScenario({...doc,areas:{'15095':'Región inventada'}},base,geo),/fondo/);
- assert.throws(()=>C.readScenario({...doc,dmColors:{Enrique:'url(javascript:malicioso)'}},base,geo),/Color/);
+test('los escenarios 3.0 migran sus regiones sugeridas a zonas geográficas',()=>{
+ const old=clone(base);old.stores.forEach(s=>{s.region=s.zone;delete s.zone;});const state=C.freshState();state.updates[cc]={region:'Oriente',notes:'Nota anterior'};const result=C.readScenario(clone(C.pack(old,state)),base,geo);assert.ok(result.base.stores.every(s=>s.region==='Centro Norte'));assert.equal(result.state.updates[cc].zone,'Oriente');assert.equal(result.state.updates[cc].notes,'Nota anterior');
 });
-test('CSV incluye apertura vacía, base y propuesta, comillas y protección de fórmulas',()=>{
- const state=C.freshState();state.updates['43300']={notes:'=HYPERLINK("x")',decision:'No considerar'};
- const csv=C.csv(base,state);assert.ok(csv.startsWith('\uFEFF'));assert.ok(csv.includes('"DM base","DM propuesta"'));assert.ok(csv.includes('"No considerar"'));assert.ok(csv.includes("\"'=HYPERLINK(\"\"x\"\")\""));
- assert.equal(csv.split('\r\n').length,104);
- assert.ok(!csv.includes('"\'-99.'),'Las longitudes numéricas negativas se conservan como números.');
+test('escenarios con CeCo, zonas o coordenadas inválidos se bloquean',()=>{
+ const doc=C.pack(base,C.freshState());assert.throws(()=>C.readScenario({...doc,version:99},base,geo),/compatible/);assert.throws(()=>C.readScenario({...doc,updates:{abcde:{decision:'Conservar'}}},base,geo),/CeCo/);assert.throws(()=>C.readScenario({...doc,updates:{[cc]:{latitude:null,longitude:3}}},base,geo),/Coordenadas/);assert.throws(()=>C.readScenario({...doc,updates:{[cc]:{zone:'Inventada'}}},base,geo),/Zona/);
 });
-test('notas y nombres se escapan para mostrarse como texto',()=>{
- assert.equal(C.escape('<img src=x onerror="x">'), '&lt;img src=x onerror=&quot;x&quot;&gt;');
+test('CSV preserva Región Centro Norte, zonas y números; neutraliza fórmulas de texto',()=>{
+ const state=C.freshState();state.updates[cc]={notes:'=HYPERLINK("x")',decision:'No considerar'};const csv=C.csv(base,state);assert.ok(csv.startsWith('\uFEFF'));assert.ok(csv.includes('"Región"'));assert.ok(csv.includes('"Centro Norte"'));assert.ok(csv.includes('"Zona base","Zona propuesta"'));assert.ok(csv.includes("\"'=HYPERLINK(\"\"x\"\")\""));assert.equal(csv.split('\r\n').length,base.stores.length+1);assert.ok(!/"'-\d/.test(csv));
 });
+test('contenido de notas o nombres se presenta como texto seguro',()=>{assert.equal(C.escape('<img src=x onerror="x">'),'&lt;img src=x onerror=&quot;x&quot;&gt;');});

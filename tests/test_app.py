@@ -7,12 +7,15 @@ import urllib.request
 from pathlib import Path
 
 import app as application
-from cms_service import synchronize_outputs
+from cms_service import synchronize_outputs, workbook_to_payload
 
 
 class AppTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.expected=workbook_to_payload(application.CMS_FILE)
+        cls.expected_dm={s["cc"]:s["dm"] for s in cls.expected["stores"]}
+        cls.codes=list(cls.expected_dm)[:2]
         cls.server=application.create_server(port=0)
         cls.port=cls.server.server_address[1]
         cls.thread=threading.Thread(target=cls.server.serve_forever,daemon=True)
@@ -33,10 +36,9 @@ class AppTests(unittest.TestCase):
         with self.get('/api/stores') as response:
             payload=json.load(response)
         self.assertEqual(payload['metadata']['store_count'],len(payload['stores']))
-        self.assertEqual(len(payload['stores']),103)
+        self.assertEqual(len(payload['stores']),len(self.expected['stores']))
         dm_by_cc={item['cc']:item['dm'] for item in payload['stores']}
-        self.assertEqual(dm_by_cc['38719'],'Veronica García')
-        self.assertEqual(dm_by_cc['38894'],'Enrique César')
+        self.assertEqual(dm_by_cc,self.expected_dm)
 
     def test_downloads(self):
         with self.get('/descargar/cms') as response:
@@ -62,8 +64,7 @@ class AppTests(unittest.TestCase):
             shutil.copy2(original[2],application.LEGACY_CSV_FILE)
             stale=json.loads(application.DATA_FILE.read_text(encoding='utf-8'))
             stale_by_cc={item['cc']:item for item in stale['stores']}
-            stale_by_cc['38719']['dm']='Vanessa Carreño'
-            stale_by_cc['38894']['dm']='Nancy Rodríguez'
+            for cc in self.codes: stale_by_cc[cc]['dm']='DM de prueba fuera de la base'
             application.DATA_FILE.write_text(json.dumps(stale,ensure_ascii=False),encoding='utf-8')
             application.LEGACY_CSV_FILE.write_text('base desactualizada',encoding='utf-8')
             try:
@@ -71,12 +72,11 @@ class AppTests(unittest.TestCase):
                 with urllib.request.urlopen(request) as response:
                     payload=json.load(response)
                 self.assertTrue(payload['ok'])
-                self.assertEqual(payload['metadata']['store_count'],103)
+                self.assertEqual(payload['metadata']['store_count'],len(self.expected['stores']))
                 self.assertTrue((Path(directory)/'backups').is_dir())
                 self.assertEqual(application.CMS_FILE.read_bytes(),xlsx)
                 updated={item['cc']:item['dm'] for item in json.loads(application.DATA_FILE.read_text(encoding='utf-8'))['stores']}
-                self.assertEqual(updated['38719'],'Veronica García')
-                self.assertEqual(updated['38894'],'Enrique César')
+                self.assertEqual(updated,self.expected_dm)
             finally:
                 application.DATA_FILE,application.CMS_FILE,application.LEGACY_CSV_FILE=original
 
@@ -86,15 +86,13 @@ class AppTests(unittest.TestCase):
             legacy=Path(directory)/'data.csv'
             stale=json.loads(application.DATA_FILE.read_text(encoding='utf-8'))
             by_cc={item['cc']:item for item in stale['stores']}
-            by_cc['38719']['dm']='Vanessa Carreño'
-            by_cc['38894']['dm']='Nancy Rodríguez'
+            for cc in self.codes: by_cc[cc]['dm']='DM de prueba fuera de la base'
             database.write_text(json.dumps(stale,ensure_ascii=False),encoding='utf-8')
             legacy.write_text('base desactualizada',encoding='utf-8')
             payload,changed=synchronize_outputs(application.CMS_FILE,database,legacy)
             self.assertEqual(len(changed),2)
             corrected={item['cc']:item['dm'] for item in payload['stores']}
-            self.assertEqual(corrected['38719'],'Veronica García')
-            self.assertEqual(corrected['38894'],'Enrique César')
+            self.assertEqual(corrected,self.expected_dm)
             check_payload,pending=synchronize_outputs(application.CMS_FILE,database,legacy,dry_run=True)
             self.assertEqual(pending,[])
             self.assertEqual(check_payload['stores'],payload['stores'])

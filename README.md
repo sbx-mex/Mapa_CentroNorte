@@ -1,112 +1,79 @@
-# Centro Norte · Mapa de decisiones 3.0
+# Centro Norte · Mapa de decisiones 3.1
 
-Herramienta para que Regional evalúe ubicaciones y pruebe asignaciones de DM y región en el mapa. Parte del repositorio `sbx-mex/Mapa_CentroNorte`, commit `53f6e9b2001880ceefb7f741352b860436121d26`, y del Excel proporcionado `Mapa_CentroNorte_CMS(2).xlsx`.
+Todas las tiendas son de **Región Centro Norte**. El mapa sirve para revisar ubicaciones, evaluar tiendas y comparar una propuesta de reparto por DM. Norte, Poniente, Centro, Oriente y Sur son **zonas geográficas del fondo**, no otras regiones comerciales.
 
-## Abrir sin instalar
+## Aplicar esta mejora
 
-1. Extrae **todo** el ZIP en una carpeta.
-2. Abre **index.html** con Chrome o Edge.
-3. Empieza por **Cómo usarlo** o selecciona una tienda del listado.
+Este paquete es incremental para la versión 3.0 subida a `sbx-mex/Mapa_CentroNorte` (base `c9bc1c729120971e7fb07b8bd36aa51312429396`). Contiene únicamente archivos nuevos o modificados.
 
-La base, los pines, las librerías y los límites municipales están incluidos y funcionan sin conexión. El mapa base de calles de INEGI requiere internet. Si ese servicio no responde, permanecen los límites y las tiendas. No hace falta una API key, Python ni instalar paquetes para usar `index.html`.
+1. Extrae el ZIP y copia su contenido en la raíz de tu proyecto, conservando las rutas y reemplazando los archivos coincidentes.
+2. Conserva el Excel de `cms/`, la cartografía de `static/planning/geography.js` y las librerías de `static/vendor/` que ya existen en el proyecto.
+3. Abre `index.html` para probar. La base validada y sus resultados ya vienen preparados.
+4. Para GitHub, sube los archivos de la mejora con sus carpetas, incluida `.github/workflows/ci.yml`. GitHub Actions ejecutará las validaciones; el resultado de esa nueva carga se confirma cuando termine la ejecución.
 
-## Qué puedes hacer
+No extraigas el ZIP en una subcarpeta del sitio para publicarlo. Debe reemplazar los archivos en la raíz existente. No es un proyecto independiente ni contiene de nuevo las librerías, la cartografía o el Excel.
 
-| Control | Resultado |
+## Navegación
+
+| Acción | Uso |
 | --- | --- |
-| Buscar y filtros | Localizar por CeCo, nombre, DM, municipio, región, estatus y decisión. |
-| Listado / pin | Abrir la ficha de una tienda y acercar el mapa. |
-| Guardar evaluación | Definir Conservar, Reasignar o No considerar, DM, región y motivo. |
-| Casillas / selección por área ▣ | Evaluar varias tiendas a la vez. La selección permanece al cambiar filtros. |
-| Comparar cercanía | Comparar distancias de los pares de tiendas seleccionadas. |
-| Por DM / Por región | Cambiar el color de los pines y su leyenda. Los grupos muestran los colores que contienen. |
-| Evaluar fondo | Seleccionar un municipio, cambiar su región y, opcionalmente, asignarla a las tiendas que contiene. |
-| Intensidad / nombres / entidades vecinas | Revisar el fondo geográfico con diferentes niveles de detalle. |
-| Ajustar pin | Arrastrar una ubicación dentro de la propuesta; las coordenadas originales se conservan en Base. |
-| Base / Propuesta | Comparar los datos originales con el escenario actual. |
-| ↶ Deshacer | Revertir hasta 35 cambios durante la sesión. También funciona Ctrl+Z fuera de los formularios. |
-| DM y colores | Cambiar colores y añadir DM para probar otras distribuciones. |
-| Ver reparto | Comparar el número de tiendas por DM antes y después de la propuesta. |
-| Exportar escenario | Descargar un JSON completo y/o un CSV de decisiones para Excel. |
-| Exportar → Nueva propuesta | Empezar otro escenario conservando las ubicaciones de la base. |
-| Cargar | Recuperar un escenario JSON o importar la hoja Ubicaciones de un Excel CMS. |
+| Buscar CeCo / Responsable DM | Encontrar una tienda o un grupo. |
+| Seleccionar tienda o pin | Abrir la evaluación en el mismo mapa. |
+| Guardar evaluación | Definir Conservar, Reasignar o No considerar, DM y motivo. |
+| Datos listos / Base validada | Revisar la calidad de los datos y abrir los puntos que necesitan atención. |
+| Ver reparto | Comparar barras de Base/Propuesta por DM. Tocar una tarjeta muestra sus tiendas en el mapa. |
+| Base / Propuesta | Comparar la información original y las decisiones. |
+| Zonas del mapa | Evaluar el fondo municipal. Cambiar una zona conserva Región Centro Norte. |
+| Por DM / Por zona | Cambiar los colores de los pines. |
+| Guardar propuesta | Descargar decisiones CSV para Excel o una copia JSON de la propuesta. |
+| Casillas / selección por área | Evaluar varias tiendas al mismo tiempo. |
+| Deshacer | Recuperar el estado anterior durante la sesión. |
 
-El buscador también se abre con `/`. Esc cancela una selección de área. Una tienda marcada **No considerar** permanece visible con × y se excluye del reparto propuesto; no se borra de la base.
+La navegación **no incluye Cargar ni entradas de archivos**. Las propuestas se conservan en este navegador. La copia JSON es un respaldo técnico; esta interfaz no ofrece importación manual de archivos. Si una base publicada cambia, se conserva un respaldo local del escenario anterior y se inicia una propuesta compatible con los datos vigentes.
 
-## Datos incluidos y revisión
+## Qué aporta Python
 
-- **103 ubicaciones**: 100 con fecha y 3 aperturas sin fecha, según la instrucción del usuario.
-- **8 DM**, incluidos David Carrasco y Moni Morales. Los DM se obtienen de Ubicaciones, no del catálogo desactualizado del Excel.
-- **Aperturas**: 43300 GasoSur Dt, 43301 Plaza Centella y 43302 Toreo Waltmar. Se conservan los nombres del archivo.
-- Tres latitudes tenían una coma sobrante al final: 43164, 43170 y 43183. Se normalizó exclusivamente esa forma de pegado, sin estimar coordenadas nuevas.
-- Las 103 coordenadas encuentran un municipio dentro del fondo cartográfico incluido.
-- **Validar 43302 Toreo Waltmar**: el Excel dice Naucalpan, Estado de México, pero la coordenada cae en Miguel Hidalgo, CDMX. La ficha muestra ambos datos; la ubicación no se corrigió automáticamente.
-- Las ubicaciones sin indicadores se aceptan: el objetivo de esta versión es geográfico. El Excel original no se modifica al abrirlo o importarlo.
+`ACTUALIZAR_MAPA.py` lee directamente la hoja Ubicaciones del Excel. Usa la biblioteca estándar de Python; no instala paquetes ni consulta servicios externos.
 
-## Fondo de regiones
+- Valida encabezados, CeCo de cinco dígitos y sin duplicados, nombres, DM, fechas y coordenadas finitas.
+- Clasifica como Apertura las filas sin fecha.
+- Asigna Región Centro Norte a todas las tiendas y mantiene las zonas en un campo independiente.
+- Revisa la coordenada contra la cartografía local e identifica diferencias de entidad y ubicaciones fuera del fondo.
+- Calcula las tres tiendas más cercanas y la extensión geográfica base por DM.
+- Genera la base y el informe que alimentan el indicador verde, la revisión interactiva y las tarjetas del reparto.
+- Cambia las referencias de datos por su firma para reducir la mezcla de recursos anteriores en la caché del navegador.
 
-Los límites proceden del **Marco Geoestadístico de INEGI, diciembre de 2025**, según los metadatos devueltos por el servicio. Se incluyen 125 municipios del Estado de México, 16 alcaldías de CDMX y 84 municipios de Hidalgo, además de los contornos de Morelos, Puebla, Tlaxcala, Michoacán y Querétaro.
+La extensión base es la distancia máxima en línea recta entre dos tiendas del mismo DM. No es un tiempo de traslado ni una recomendación automática de asignación.
 
-**Norte, Poniente, Centro, Oriente y Sur son sugerencias de trabajo**, no regiones comerciales confirmadas ni regiones definidas por INEGI. El Excel no trae ese campo. La asignación inicial usa el centro de la caja geográfica de cada municipio respecto al Zócalo: zona Centro hasta 0.115 grados; fuera de ella, orientación del eje dominante. Se puede modificar municipio por municipio en Evaluar fondo. La región de una tienda también se puede cambiar de forma independiente.
+**Datos listos** significa que la estructura de la base pasó la validación. Los avisos de ubicación se muestran aparte. Actualmente hay 103 tiendas, ocho DM y tres aperturas. El CeCo 43302 requiere revisar la diferencia entre Naucalpan en el Excel y Miguel Hidalgo en su coordenada. Los valores originales se conservan.
 
-Las geometrías están en longitud/latitud WGS84, redondeadas a 5 decimales y simplificadas aproximadamente a 0.00022 grados para visualización. Cambiar el fondo agrupa municipios; no altera sus límites.
+## Actualizar información futura
 
-Fuentes:
-
-- [Servicio de claves y geometrías INEGI](https://www.inegi.org.mx/servicios/catalogounico.html)
-- [Servicio de mapas web INEGI](https://www.inegi.org.mx/servicios/wsinfogeo/default.html)
-- Endpoints y metadatos originales: `static/planning/sources.json`.
-
-Las distancias usan Haversine en línea recta. No representan trayectos, tráfico ni tiempo de traslado y no determinan automáticamente qué tienda conservar.
-
-## Guardar y compartir
-
-Se guarda automáticamente **un escenario en este navegador y origen** mediante localStorage. Cambiar de navegador, equipo, dirección o carpeta puede abrir un almacenamiento diferente. Si el navegador bloquea el almacenamiento, la aplicación indica que debes exportar.
-
-El **JSON** incluye la base del escenario, asignaciones, decisiones, notas, coordenadas ajustadas, colores y cambios de fondo. Cárgalo en otro equipo con Cargar → Escenario. El **CSV** tiene una fila por tienda con columnas de base y propuesta; sirve para revisión en Excel, no para recuperar el fondo. El CSV protege las celdas de texto que podrían interpretarse como fórmulas.
-
-Los archivos se leen y procesan en el navegador. No hay colaboración simultánea ni sincronización de escenarios con GitHub. El mapa base hace solicitudes al servicio de INEGI para la zona visible. El ZIP no contiene decisiones de prueba.
-
-## Estructura para mejorar el proyecto
-
-```text
-index.html                       Entrada estática para archivo local y GitHub Pages
-static/planning/app.js            Interfaz y acciones sobre el mapa
-static/planning/core.js           Validación, filtros, escenarios y distancias
-static/planning/planning.css      Diseño adaptable
-static/planning/base.js           Instantánea geográfica de las 103 tiendas
-static/planning/geography.js      Límites y regiones iniciales locales
-static/planning/sources.json      Procedencia, reglas y metadatos
-static/vendor/                    Leaflet, MarkerCluster y lector Excel, con licencias
-cms/Mapa_CentroNorte_CMS.xlsx      Excel proporcionado, conservado sin editar
-data/stores.json                  Base canónica compatible con el CMS anterior
-data.csv                         Exportación compatible anterior
-tools/build_remaster.py           Regenera instantáneas desde CMS y servicio INEGI
-tests/planning.test.cjs           Pruebas del motor del mapa y sus escenarios
-app.py / cms_service.py           Servidor y administración CMS conservados
-```
-
-Para GitHub Pages basta publicar la carpeta con `index.html` y `static/`. El ZIP se preparó para revisión y no publica cambios en el repositorio automáticamente.
-
-Para actualizar la base de trabajo dentro del navegador usa Cargar → Excel. Para actualizar la base estática que verán todos al abrir `index.html`, reemplaza el CMS y ejecuta:
+1. Actualiza `cms/Mapa_CentroNorte_CMS.xlsx`, hoja **Ubicaciones**. Conserva CC, Nombre Tienda, DM, Fecha Apertura, Municipio, Cobertura, Latitud y Longitud. Formato, Formato Comercial, Tier y Activa pueden estar vacíos.
+2. Ejecuta Python 3.10 o posterior:
 
 ```bash
-pip install -r requirements.txt
-python tools/build_remaster.py
+python ACTUALIZAR_MAPA.py
 ```
 
-El constructor descarga geometrías INEGI y las reutiliza en `.geo-cache`. También admite `--geo-cache /ruta/al/cache`. No modifica el Excel. Después publica los archivos regenerados junto con la interfaz. La administración Python anterior actualiza JSON/CSV; para que esa actualización llegue a la entrada estática también debes regenerar `base.js` con este comando.
+El proceso valida, prepara los datos y abre el mapa. Para terminal o automatización usa `python ACTUALIZAR_MAPA.py --no-open`.
 
-Servidor opcional: `python app.py`, luego `http://127.0.0.1:8000/mapa`. Se conservaron las rutas anteriores de directorio y administración. La remasterización abre desde `index.html` y no depende de ellas.
+3. Sube el Excel actualizado y los archivos regenerados: `index.html`, `static/planning/base.js` y `static/planning/insights.js`.
+
+Las cantidades de tiendas y DM pueden cambiar sin editar las pruebas. Si Python detecta un archivo inválido, conserva la última base y marca la revisión como bloqueada. Corrige los errores y ejecútalo otra vez. `--check` solo verifica, no modifica archivos y devuelve un código de error real si hay problemas o la vista no coincide con el Excel.
+
+El mapa en GitHub Pages sigue siendo estático. Python prepara y valida la información antes de subirla; no se ejecuta dentro de GitHub Pages. Las decisiones realizadas en el navegador se reflejan al instante mediante la interfaz.
 
 ## Verificación
 
 ```bash
-node --check static/planning/app.js
-node --test tests/planning.test.cjs
+python ACTUALIZAR_MAPA.py --check
 python -m unittest discover -s tests -v
+node --check static/planning/app.js
+node --check static/planning/core.js
+node --test tests/planning.test.cjs
 ```
 
-Se comprobaron en navegador búsqueda, reasignación, guardado, recarga, Base/Propuesta, evaluación de grupos, comparación de cercanía, selección rectangular, cambio de fondo municipal, color por región, carga del Excel proporcionado, descarga JSON/CSV, ajuste de pin y Deshacer.
+Se verificaron 15 pruebas de Python y 16 del motor de la interfaz. Incluyen futuras cantidades de tiendas/DM, región única, separación de zonas, fechas vacías, duplicados, coordenadas inválidas, respaldo ante error, cercanías y migración de escenarios 3.0.
 
-Dependencias locales: Leaflet 1.9.4, Leaflet.markercluster 1.5.3, SheetJS CE 0.18.5 (lectura XLSX). Sus licencias se incluyen en `static/vendor`. No hay dependencias de Node que instalar para ejecutar o probar el mapa.
+Se comprobó en navegador la revisión de datos, el acceso desde un aviso a su pin, el guardado de evaluaciones, el avance de revisión y el reparto visual. La navegación mantiene la base, el mapa y las librerías locales. Las calles de INEGI requieren conexión; el fondo municipal y los pines continúan disponibles sin ella.

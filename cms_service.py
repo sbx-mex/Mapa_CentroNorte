@@ -65,13 +65,14 @@ def _serialize(value: Any) -> Any:
 
 def _read_sheet(ws, expected_headers: list[str]) -> list[dict[str, Any]]:
     headers = [_clean(cell.value) for cell in ws[1]]
-    missing = [header for header in expected_headers if header not in headers]
+    required = [h for h in expected_headers if h not in {'Formato', 'Formato Comercial', 'Tier', 'Activa'}] if ws.title == 'Ubicaciones' else expected_headers
+    missing = [header for header in required if header not in headers]
     if missing:
         raise CMSValidationError([f"{ws.title}: faltan columnas: {', '.join(missing)}"])
-    positions = {header: headers.index(header) for header in expected_headers}
+    positions = {header: headers.index(header) if header in headers else None for header in expected_headers}
     rows = []
     for row_number, cells in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
-        record = {header: _serialize(cells[index] if index < len(cells) else None) for header, index in positions.items()}
+        record = {header: _serialize(cells[index] if index is not None and index < len(cells) else None) for header, index in positions.items()}
         if any(value is not None for value in record.values()):
             record["_row"] = row_number
             rows.append(record)
@@ -92,13 +93,13 @@ def _to_float(value: Any, label: str, errors: list[str], allow_none: bool = True
 def workbook_to_payload(path: str | Path) -> dict[str, Any]:
     wb = load_workbook(path, data_only=True, read_only=True)
     errors: list[str] = []
-    required_sheets = {"Ubicaciones", "Indicadores"}
-    if not required_sheets.issubset(wb.sheetnames):
-        missing = sorted(required_sheets.difference(wb.sheetnames))
-        raise CMSValidationError([f"Faltan pestañas: {', '.join(missing)}"])
-
-    locations = _read_sheet(wb["Ubicaciones"], LOCATION_HEADERS)
-    metrics = _read_sheet(wb["Indicadores"], METRIC_HEADERS)
+    try:
+        if 'Ubicaciones' not in wb.sheetnames:
+            raise CMSValidationError(['Falta la pestaña Ubicaciones'])
+        locations = _read_sheet(wb['Ubicaciones'], LOCATION_HEADERS)
+        metrics = _read_sheet(wb['Indicadores'], METRIC_HEADERS) if 'Indicadores' in wb.sheetnames else []
+    finally:
+        wb.close()
 
     location_by_cc: dict[str, dict[str, Any]] = {}
     for row in locations:

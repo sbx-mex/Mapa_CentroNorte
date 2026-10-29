@@ -5,8 +5,9 @@
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
   const decisions = ['Por evaluar', 'Conservar', 'Reasignar', 'No considerar'];
-  const regions = ['Norte', 'Poniente', 'Centro', 'Oriente', 'Sur'];
-  const regionColors = {Norte:'#38859a', Poniente:'#768c56', Centro:'#00704a', Oriente:'#d39236', Sur:'#a05279'};
+  const REGION='Centro Norte', regions=[REGION];
+  const zones = ['Norte', 'Poniente', 'Centro', 'Oriente', 'Sur'];
+  const zoneColors = {Norte:'#38859a', Poniente:'#768c56', Centro:'#00704a', Oriente:'#d39236', Sur:'#a05279'};
   const dmColors = {'Enrique César':'#00754a','Nancy Rodríguez':'#2475bf','Vanessa Carreño':'#8654b8','Veronica García':'#bd6c21','Yazmin Chabela':'#c14f61','Yazmin García':'#8a6a43','David Carrasco':'#158594','Moni Morales':'#a548a2'};
   const palette = ['#3f66aa','#b46831','#4b8a50','#9554a5','#3c8f88','#b63c60'];
   const clean = value => String(value == null ? '' : value).trim();
@@ -82,7 +83,7 @@
       let date;
       try{date=excelDate(row['Fecha Apertura']);}catch(e){errors.push(label+e.message);return;}
       const area=findArea(latitude,longitude,geo);
-      stores.push({cc,store_name:clean(row['Nombre Tienda']),dm:clean(row.DM),opening_date:date,municipality:clean(row.Municipio),coverage:clean(row.Cobertura),format:clean(row.Formato),commercial_format:clean(row['Formato Comercial']),tier:clean(row.Tier),latitude,longitude,active:!['no','false','0','inactiva'].includes(norm(row.Activa)),municipality_id:area?area.properties.id:null,geo_municipality:area?area.properties.name:null,region:area?area.properties.region:suggestedRegion(latitude,longitude),status:date?'Actual':'Apertura'});
+      stores.push({cc,store_name:clean(row['Nombre Tienda']),dm:clean(row.DM),opening_date:date,municipality:clean(row.Municipio),coverage:clean(row.Cobertura),format:clean(row.Formato),commercial_format:clean(row['Formato Comercial']),tier:clean(row.Tier),latitude,longitude,active:!['no','false','0','inactiva'].includes(norm(row.Activa)),municipality_id:area?area.properties.id:null,geo_municipality:area?area.properties.name:null,region:REGION,zone:area?(area.properties.zone||area.properties.region):suggestedRegion(latitude,longitude),status:date?'Actual':'Apertura'});
     });
     if(errors.length)throw new Error(errors.slice(0,12).join('\n'));
     if(!stores.length)throw new Error('No se encontraron ubicaciones.');
@@ -92,18 +93,20 @@
   function current(base,state,view='proposal') {
     return base.stores.map(s=>{
       const update=view==='base'?{}:(state.updates[s.cc]||{});
-      return {...s,decision:'Por evaluar',notes:'',...update};
+      return {...s,decision:'Por evaluar',notes:'',...update,region:REGION};
     });
   }
   function filtered(stores,filter) {
-    return stores.filter(s=>(!filter.search || norm([s.cc,s.store_name,s.dm,s.municipality,s.geo_municipality].join(' ')).includes(norm(filter.search))) && (!filter.dm||s.dm===filter.dm)&&(!filter.region||s.region===filter.region)&&(!filter.status||s.status===filter.status)&&(!filter.decision||s.decision===filter.decision));
+    return stores.filter(s=>(!filter.search || norm([s.cc,s.store_name,s.dm,s.municipality,s.geo_municipality].join(' ')).includes(norm(filter.search))) && (!filter.dm||s.dm===filter.dm)&&(!filter.zone||s.zone===filter.zone)&&(!filter.status||s.status===filter.status)&&(!filter.decision||s.decision===filter.decision));
   }
   function nearest(store,stores,n=3) {return stores.filter(s=>s.cc!==store.cc).map(s=>({...s,km:distance(store,s)})).sort((a,b)=>a.km-b.km).slice(0,n);}
   function validateBase(base) {
     if(!base || !base.metadata || typeof base.metadata.signature!=='string'||!Array.isArray(base.stores)||!base.stores.length||base.stores.length>10000) throw new Error('Base del escenario inválida.');
     const seen=new Set();
     base.stores.forEach(s=>{
-      if(!/^\d{5}$/.test(s.cc)||seen.has(s.cc)||!validPoint(s.latitude,s.longitude)||!clean(s.store_name)||!clean(s.dm)||!regions.includes(s.region)) throw new Error('La base contiene una ubicación inválida o duplicada.');
+      // Migrar la referencia geográfica de 3.0 sin convertirla en región comercial.
+      if(!s.zone && zones.includes(s.region)){s.zone=s.region;s.region=REGION;}
+      if(!/^\d{5}$/.test(s.cc)||seen.has(s.cc)||!validPoint(s.latitude,s.longitude)||!clean(s.store_name)||!clean(s.dm)||s.region!==REGION||!zones.includes(s.zone)) throw new Error('La base contiene una ubicación inválida o duplicada.');
       if(s.opening_date!=null)excelDate(s.opening_date);
       seen.add(s.cc);
     });
@@ -119,13 +122,14 @@
       if(!codes.has(cc)||!u||typeof u!=='object')throw new Error('El escenario tiene CeCo desconocidos.');
       const update={};
       if(u.dm!=null){if(!clean(u.dm)||clean(u.dm).length>80)throw new Error('DM inválido.');update.dm=clean(u.dm);}
-      if(u.region!=null){if(!regions.includes(u.region))throw new Error('Región inválida.');update.region=u.region;}
+      if(u.region!=null && u.region!==REGION){if(!zones.includes(u.region))throw new Error('Región inválida.');update.zone=u.region;}
+      if(u.zone!=null){if(!zones.includes(u.zone))throw new Error('Zona inválida.');update.zone=u.zone;}
       if(u.decision!=null){if(!decisions.includes(u.decision))throw new Error('Decisión inválida.');update.decision=u.decision;}
       if(u.notes!=null)update.notes=clean(u.notes).slice(0,2000);
       if(u.latitude!=null||u.longitude!=null){if(!validPoint(u.latitude,u.longitude))throw new Error('Coordenadas del escenario inválidas.');update.latitude=u.latitude;update.longitude=u.longitude;}
       state.updates[cc]=update;
     }
-    for(const [id,region] of Object.entries(doc.areas||{})){if(!areas.has(id)||!regions.includes(region))throw new Error('Asignación de fondo inválida.');state.areas[id]=region;}
+    for(const [id,zone] of Object.entries(doc.areas||{})){if(!areas.has(id)||!zones.includes(zone))throw new Error('Asignación de fondo inválida.');state.areas[id]=zone;}
     for(const [dm,color] of Object.entries(doc.dmColors||{})){if(!clean(dm)||clean(dm).length>80||!/^#[a-fA-F0-9]{6}$/.test(color))throw new Error('Color de DM inválido.');Object.defineProperty(state.dmColors,dm,{value:color,enumerable:true,writable:true,configurable:true});}
     if(!Array.isArray(doc.extraDms||[]))throw new Error('Lista de DM inválida.');
     state.extraDms=[...new Set((doc.extraDms||[]).map(clean).filter(s=>s&&s.length<=80))].slice(0,100);
@@ -139,9 +143,9 @@
   }
   function csv(base,state) {
     const byId=new Map(base.stores.map(s=>[s.cc,s]));
-    const headers=['CeCo','Tienda','Estatus','Fecha apertura','Municipio Excel','Municipio por coordenada','DM base','DM propuesta','Región sugerida','Región propuesta','Decisión','Notas','Latitud base','Longitud base','Latitud propuesta','Longitud propuesta'];
-    const rows=current(base,state).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.region,s.region,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude];});
+    const headers=['CeCo','Tienda','Región','Estatus','Fecha apertura','Municipio Excel','Municipio por coordenada','DM base','DM propuesta','Zona base','Zona propuesta','Decisión','Notas','Latitud base','Longitud base','Latitud propuesta','Longitud propuesta'];
+    const rows=current(base,state).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,REGION,s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude];});
     return '\uFEFF'+[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
   }
-  return {decisions,regions,regionColors,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
+  return {REGION,decisions,regions,zones,zoneColors,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
 });
