@@ -33,7 +33,7 @@ class AppTests(unittest.TestCase):
         with self.get('/api/stores') as response:
             payload=json.load(response)
         self.assertEqual(payload['metadata']['store_count'],len(payload['stores']))
-        self.assertEqual(len(payload['stores']),72)
+        self.assertEqual(len(payload['stores']),103)
         dm_by_cc={item['cc']:item['dm'] for item in payload['stores']}
         self.assertEqual(dm_by_cc['38719'],'Veronica García')
         self.assertEqual(dm_by_cc['38894'],'Enrique César')
@@ -71,7 +71,7 @@ class AppTests(unittest.TestCase):
                 with urllib.request.urlopen(request) as response:
                     payload=json.load(response)
                 self.assertTrue(payload['ok'])
-                self.assertEqual(payload['metadata']['store_count'],72)
+                self.assertEqual(payload['metadata']['store_count'],103)
                 self.assertTrue((Path(directory)/'backups').is_dir())
                 self.assertEqual(application.CMS_FILE.read_bytes(),xlsx)
                 updated={item['cc']:item['dm'] for item in json.loads(application.DATA_FILE.read_text(encoding='utf-8'))['stores']}

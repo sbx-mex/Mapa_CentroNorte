@@ -27,6 +27,8 @@ def load_database() -> dict:
 
 
 def render_index(page: str) -> bytes:
+    if page == "mapa":
+        return (BASE_DIR / "index.html").read_bytes()
     source = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
     if page == "mapa":
         replacements = {"{{PAGE}}": "mapa", "{{PAGE_TITLE}}": "Mapa de tiendas", "{{CONTENT_VIEW}}": '<div id="map" aria-label="Mapa de tiendas"></div>'}
@@ -79,7 +81,8 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(content)))
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self';")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://gaiamapas3.inegi.org.mx https://*.tile.openstreetmap.org; connect-src 'self'; worker-src 'self' blob:;")
+        self.send_header("Cache-Control", "no-cache")
         if disposition:
             self.send_header("Content-Disposition", disposition)
         self.end_headers()

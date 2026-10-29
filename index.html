@@ -1,430 +1,68 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Región Centro Norte | Mapa Ejecutivo</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-
-  <style>
-    :root {
-      --starbucks: #006241;
-      --starbucks-dark: #003b2e;
-      --bg: #f4f6f5;
-      --card: #ffffff;
-      --border: #d7ddd9;
-      --text: #1f2933;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-
-    header {
-      background: var(--starbucks);
-      color: white;
-      padding: 14px 18px;
-      font-size: 18px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .subtitle {
-      font-size: 12px;
-      font-weight: normal;
-      opacity: 0.9;
-    }
-
-    #controls {
-      padding: 10px;
-      background: var(--card);
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,.15);
-      z-index: 999;
-      position: relative;
-    }
-
-    select, input, button {
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-      background: white;
-      min-height: 38px;
-    }
-
-    input { min-width: 220px; }
-
-    #resetBtn {
-      background: var(--starbucks);
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    #summary {
-      background: #ffffff;
-      padding: 8px 12px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-    }
-
-    .pill {
-      background: #edf4f1;
-      border: 1px solid #d7e7df;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-weight: bold;
-    }
-
-    #map {
-      height: calc(100vh - 164px);
-      width: 100%;
-    }
-
-    .popup {
-      min-width: 270px;
-      max-width: 330px;
-    }
-
-    .popup h3 {
-      margin: 0 0 8px;
-      color: var(--starbucks);
-      font-size: 18px;
-    }
-
-    .section {
-      margin-top: 8px;
-      font-weight: bold;
-      color: var(--starbucks-dark);
-      border-top: 1px solid #ddd;
-      padding-top: 7px;
-    }
-
-    .row {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      font-size: 13px;
-      margin: 4px 0;
-    }
-
-    .label {
-      font-weight: bold;
-      color: #444;
-    }
-
-    .value {
-      color: #222;
-      text-align: right;
-    }
-
-    .error {
-      display: none;
-      background: #fff3f3;
-      color: #8a1f1f;
-      border: 1px solid #f1b7b7;
-      padding: 8px 12px;
-      font-weight: bold;
-    }
-
-    @media (max-width: 760px) {
-      header {
-        font-size: 16px;
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      #controls {
-        gap: 6px;
-      }
-
-      input, select, button {
-        width: 100%;
-        font-size: 13px;
-      }
-
-      #map {
-        height: calc(100vh - 310px);
-      }
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123e34">
+  <meta name="description" content="Mapa interactivo Centro Norte. Evalúa ubicaciones y construye escenarios de DM y regiones sobre límites INEGI.">
+  <title>Centro Norte · Mapa de decisiones</title>
+  <link rel="icon" href="static/planning/compass.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="static/vendor/leaflet.css">
+  <link rel="stylesheet" href="static/vendor/MarkerCluster.css">
+  <link rel="stylesheet" href="static/planning/planning.css">
+  <script defer src="static/vendor/leaflet.js"></script>
+  <script defer src="static/vendor/leaflet.markercluster.js"></script>
+  <script defer src="static/vendor/xlsx.full.min.js"></script>
+  <script defer src="static/planning/geography.js"></script>
+  <script defer src="static/planning/base.js"></script>
+  <script defer src="static/planning/core.js"></script>
+  <script defer src="static/planning/app.js"></script>
 </head>
-
 <body>
-  <header>
-    <div>☕ Región Centro Norte | Mapa Ejecutivo</div>
-    <div class="subtitle">Filtros por DM, Cobertura, Tipo, Tier y Formato Comercial</div>
+  <a class="skip-link" href="#search">Ir al listado de tiendas</a>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Centro Norte, inicio"><img src="static/planning/compass.svg" alt=""><span>CENTRO NORTE<small>OPERACIONES · PLANEACIÓN GEOGRÁFICA</small></span></a>
+    <div class="scenario-name"><span class="live-dot"></span><label for="scenarioName">Escenario</label><input id="scenarioName" value="Propuesta Centro Norte" maxlength="80" aria-label="Nombre del escenario"><span id="saveState">Guardado en este equipo</span></div>
+    <nav class="header-actions" aria-label="Acciones de escenario">
+      <button id="guideBtn" class="quiet">Cómo usarlo <span class="key">?</span></button>
+      <button id="importBtn" class="secondary">Cargar</button>
+      <button id="exportBtn" class="primary">Exportar escenario <span aria-hidden="true">↗</span></button>
+    </nav>
   </header>
-
-  <div id="controls">
-    <input id="search" type="text" placeholder="Buscar tienda o CC" />
-
-    <select id="dmFilter">
-      <option value="">Todos los DM</option>
-    </select>
-
-    <select id="coberturaFilter">
-      <option value="">Todas las coberturas</option>
-    </select>
-
-    <select id="tierFilter">
-      <option value="">Todos los Tier</option>
-    </select>
-
-    <select id="tipoFilter">
-      <option value="">Todos los tipos</option>
-    </select>
-
-    <select id="comercialFilter">
-      <option value="">Todos los formatos comerciales</option>
-    </select>
-
-    <button id="resetBtn" type="button">Limpiar filtros</button>
-  </div>
-
-  <div id="summary">
-    <span class="pill" id="visibleCount">Tiendas visibles: 0</span>
-    <span class="pill" id="edomexCount">Estado de México: 0</span>
-    <span class="pill" id="cdmxCount">Ciudad de México: 0</span>
-    <span class="pill" id="dtCount">DT: 0</span>
-  </div>
-
-  <div id="errorBox" class="error"></div>
-  <div id="map"></div>
-
-  <script>
-    const map = L.map("map").setView([19.50, -99.18], 11);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "Mapa Ejecutivo Región Centro Norte"
-    }).addTo(map);
-
-    let allData = [];
-    let markers = [];
-    let markerBounds = [];
-
-    const colors = {
-      "Enrique César": "#00704A",
-      "Nancy Rodríguez": "#0073CF",
-      "Vanessa Carreño": "#8E44AD",
-      "Veronica García": "#F39C12",
-      "Yazmin Chabela": "#C0392B",
-      "Yazmin García": "#8D6E63",
-      "Yazmin Haydee": "#8D6E63",
-      "Yazmin Chabela Guadarrama": "#C0392B",
-      "Yazmin García González": "#8D6E63"
-    };
-
-    function clean(value) {
-      return String(value ?? "").trim();
-    }
-
-    function normalize(value) {
-      return clean(value)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase();
-    }
-
-    function getColor(dm) {
-      return colors[clean(dm)] || "#006241";
-    }
-
-    function addOptions(id, values) {
-      const select = document.getElementById(id);
-
-      while (select.options.length > 1) {
-        select.remove(1);
-      }
-
-      const cleanValues = [...new Set(values.map(clean).filter(Boolean))]
-        .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
-
-      cleanValues.forEach(v => {
-        const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
-        select.appendChild(opt);
-      });
-    }
-
-    function popupTemplate(d) {
-      return `
-        <div class="popup">
-          <h3>${d["CC Nombre"] || ""}</h3>
-
-          <div class="row"><span class="label">CC</span><span class="value">${d["CC"] || ""}</span></div>
-          <div class="row"><span class="label">DM</span><span class="value">${d["DM"] || ""}</span></div>
-          <div class="row"><span class="label">Apertura</span><span class="value">${d["Fecha de Apertura"] || ""}</span></div>
-          <div class="row"><span class="label">Municipio</span><span class="value">${d["Municipio o Delegación"] || ""}</span></div>
-          <div class="row"><span class="label">Cobertura</span><span class="value">${d["Cobertura"] || ""}</span></div>
-          <div class="row"><span class="label">Tipo</span><span class="value">${d["Formato"] || ""}</span></div>
-          <div class="row"><span class="label">Formato Comercial</span><span class="value">${d["Formato - Comercial"] || ""}</span></div>
-          <div class="row"><span class="label">Tier</span><span class="value">${d["TIER"] || ""}</span></div>
-
-          <div class="section">🤝 Partner</div>
-          <div class="row"><span class="label">Rolling</span><span class="value">${d["Rolling"] || ""}</span></div>
-
-          <div class="section">💰 Negocio</div>
-          <div class="row"><span class="label">Ventas</span><span class="value">${d["Ventas"] || ""}</span></div>
-         <div class="row"><span class="label">Dif ppto %</span><span class="value">${d["Dif ppto%"] || d["Dif ppto %"] || ""}</span></div>
-          <div class="row"><span class="label">TPLH</span><span class="value">${d["TPLH"] || ""}</span></div>
-          <div class="row"><span class="label">IPLH</span><span class="value">${d["IPLH"] || ""}</span></div>
-          <div class="row"><span class="label">Labor</span><span class="value">${d["Labor"] || d["Labor %"] || ""}</span></div>
-          <div class="row"><span class="label">Dif Labor %</span><span class="value">${d["Dif Labor%"] || d["Dif Labor %"] || ""}</span></div>
-          <div class="row"><span class="label">OMT</span><span class="value">${d["OMT #"] || ""}</span></div>
-          <div class="row"><span class="label">Costo</span><span class="value">${d["Costo"] || ""}</span></div>
-          <div class="row"><span class="label">Dif costo %</span><span class="value">${d["Dif costo%"] || d["Dif costo %"] || ""}</span></div>
-          <div class="row"><span class="label">EBITDA</span><span class="value">${d["EBITDA"] || ""}</span></div>
-          <div class="row"><span class="label">Dif EBITDA</span><span class="value">${d["Dif EBITDA %"] || d["dif EBITDA %"] || ""}</span></div>
-
-          <div class="section">☕ Cliente</div>
-          <div class="row"><span class="label">NPS</span><span class="value">${d["NPS"] || ""}</span></div>
-          <div class="row"><span class="label">Conexión</span><span class="value">${d["Conexión"] || ""}</span></div>
-          <div class="row"><span class="label">Bebida</span><span class="value">${d["Bebida"] || ""}</span></div>
-          <div class="row"><span class="label">CTC</span><span class="value">${d["CTC"] || ""}</span></div>
-
-          <div class="section">🚗 Drive Thru</div>
-          <div class="row"><span class="label">DT Time</span><span class="value">${d["DT Time"] || "No hay valor"}</span></div>
-          <div class="row"><span class="label">DT AA</span><span class="value">${d["Tiempo DT AA"] || "No hay valor"}</span></div>
-
-          <div class="section">📅 Corte</div>
-          <div class="row"><span class="label">YTD</span><span class="value">${d["Corte YTD"] || ""}</span></div>
-        </div>`;
-    }
-
-    function clearMarkers() {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
-      markerBounds = [];
-    }
-
-    function updateSummary(filtered) {
-      const edomex = filtered.filter(d => normalize(d["Cobertura"]).includes("ESTADO")).length;
-      const cdmx = filtered.filter(d => normalize(d["Cobertura"]).includes("CIUDAD")).length;
-      const dt = filtered.filter(d => normalize(d["Formato"]).includes("DRIVE")).length;
-
-      document.getElementById("visibleCount").textContent = `Tiendas visibles: ${filtered.length}`;
-      document.getElementById("edomexCount").textContent = `Estado de México: ${edomex}`;
-      document.getElementById("cdmxCount").textContent = `Ciudad de México: ${cdmx}`;
-      document.getElementById("dtCount").textContent = `DT: ${dt}`;
-    }
-
-    function renderMap() {
-      clearMarkers();
-
-      const search = normalize(document.getElementById("search").value);
-      const dm = clean(document.getElementById("dmFilter").value);
-      const cobertura = clean(document.getElementById("coberturaFilter").value);
-      const tier = clean(document.getElementById("tierFilter").value);
-      const tipo = clean(document.getElementById("tipoFilter").value);
-      const comercial = clean(document.getElementById("comercialFilter").value);
-
-      const filtered = allData.filter(d => {
-        const nombre = normalize(d["CC Nombre"]);
-        const cc = normalize(d["CC"]);
-
-        return (!search || nombre.includes(search) || cc.includes(search))
-          && (!dm || clean(d["DM"]) === dm)
-          && (!cobertura || clean(d["Cobertura"]) === cobertura)
-          && (!tier || clean(d["TIER"]) === tier)
-          && (!tipo || clean(d["Formato"]) === tipo)
-          && (!comercial || clean(d["Formato - Comercial"]) === comercial);
-      });
-
-      filtered.forEach(d => {
-        const lat = parseFloat(clean(d["Latitud"]));
-        const lng = parseFloat(clean(d["Longitud"]));
-
-        if (!isNaN(lat) && !isNaN(lng)) {
-          const marker = L.circleMarker([lat, lng], {
-            radius: 8,
-            color: getColor(d["DM"]),
-            fillColor: getColor(d["DM"]),
-            fillOpacity: 0.9,
-            weight: 2
-          }).addTo(map);
-
-          marker.bindPopup(popupTemplate(d));
-          markers.push(marker);
-          markerBounds.push([lat, lng]);
-        }
-      });
-
-      updateSummary(filtered);
-
-      if (markerBounds.length > 0) {
-        map.fitBounds(markerBounds, { padding: [25, 25], maxZoom: 13 });
-      }
-    }
-
-    Papa.parse("data.csv", {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: header => clean(header),
-      complete: function(results) {
-        const errorBox = document.getElementById("errorBox");
-
-        allData = results.data
-          .map(row => {
-            const cleanRow = {};
-            Object.keys(row || {}).forEach(key => {
-              cleanRow[clean(key)] = row[key];
-            });
-            return cleanRow;
-          })
-          .filter(d => clean(d["CC Nombre"]) || clean(d["CC"]));
-
-        addOptions("dmFilter", allData.map(d => d["DM"]));
-        addOptions("coberturaFilter", allData.map(d => d["Cobertura"]));
-        addOptions("tierFilter", allData.map(d => d["TIER"]));
-        addOptions("tipoFilter", allData.map(d => d["Formato"]));
-        addOptions("comercialFilter", allData.map(d => d["Formato - Comercial"]));
-
-        errorBox.style.display = "none";
-        renderMap();
-      },
-      error: function(err) {
-        const errorBox = document.getElementById("errorBox");
-        errorBox.textContent = "No se pudo leer data.csv. Verifica que el archivo esté en el mismo repositorio y se llame exactamente data.csv.";
-        errorBox.style.display = "block";
-        console.error("Error leyendo CSV:", err);
-      }
-    });
-
-    document.getElementById("resetBtn").addEventListener("click", () => {
-      document.getElementById("search").value = "";
-      document.getElementById("dmFilter").value = "";
-      document.getElementById("coberturaFilter").value = "";
-      document.getElementById("tierFilter").value = "";
-      document.getElementById("tipoFilter").value = "";
-      document.getElementById("comercialFilter").value = "";
-      renderMap();
-    });
-
-    document.querySelectorAll("select, input").forEach(el => {
-      el.addEventListener("input", renderMap);
-      el.addEventListener("change", renderMap);
-    });
-  </script>
+  <main class="workspace">
+    <aside class="sidebar" id="sidebar" aria-label="Directorio y filtros">
+      <div class="sidebar-heading"><button id="closeListBtn" class="close-list" aria-label="Cerrar listado">×</button><div class="eyebrow">TU TERRITORIO, EN PERSPECTIVA</div><h1>Mapa de decisiones<span class="title-dot">.</span></h1><p>Ubica. Compara. Decide.</p></div>
+      <div class="scope-summary" id="scopeSummary"></div>
+      <div class="filters">
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar CeCo, tienda o municipio" autocomplete="off" aria-label="Buscar CeCo, tienda, DM o municipio"><span class="key">/</span></label>
+        <div class="filter-grid"><label>DM<select id="dmFilter"><option value="">Todos los DM</option></select></label><label>Región<select id="regionFilter"><option value="">Todas las regiones</option></select></label><label>Ubicaciones<select id="statusFilter"><option value="">Actuales + aperturas</option><option>Actual</option><option>Apertura</option></select></label><label>Decisión<select id="decisionFilter"><option value="">Todas las decisiones</option></select></label></div>
+        <div class="filter-actions"><span id="filterCount"></span><button id="clearFilters" class="link-button">Limpiar filtros</button></div>
+      </div>
+      <div class="list-tools"><label class="select-visible"><input type="checkbox" id="selectVisible">Seleccionar visibles</label><select id="sortSelect" aria-label="Orden del listado"><option value="cc">Por CeCo</option><option value="dm">Por DM</option><option value="region">Por región</option></select></div>
+      <div class="store-list" id="storeList" aria-label="Listado de tiendas"></div>
+      <div class="sidebar-footer"><button id="teamBtn" class="quiet">◉ DM y colores</button><button id="summaryBtn" class="quiet">▥ Ver reparto</button></div>
+    </aside>
+    <section class="map-workspace" aria-label="Mapa interactivo de ubicaciones">
+      <div id="map" role="region" aria-label="Mapa de tiendas, municipios y regiones sugeridas"></div>
+      <div class="map-topbar">
+        <button class="mobile-list secondary" id="mobileListBtn">☰ Tiendas</button>
+        <div class="map-control-group"><span class="control-caption">ESCENARIO</span><div class="segmented" aria-label="Comparar base y propuesta"><button data-view="base" aria-pressed="false">Base</button><button data-view="proposal" class="active" aria-pressed="true">Propuesta</button></div></div>
+        <div class="map-control-group color-group"><span class="control-caption">COLOR DE PINES</span><div class="segmented" aria-label="Color de pines"><button data-color="dm" class="active" aria-pressed="true">Por DM</button><button data-color="region" aria-pressed="false">Por región</button></div></div>
+        <button id="backgroundBtn" class="map-action">▧ Evaluar fondo</button>
+      </div>
+      <div class="map-tools"><button id="fitBtn" title="Ver todas las tiendas filtradas" aria-label="Centrar tiendas visibles">⌖</button><button id="areaBtn" title="Seleccionar tiendas en un área" aria-label="Seleccionar tiendas en un área">▣</button><button id="undoBtn" title="Deshacer último cambio" aria-label="Deshacer último cambio" disabled>↶</button></div>
+      <div class="map-status" id="mapStatus"><span class="live-dot"></span><span>Explora el mapa o selecciona una tienda</span></div>
+      <div class="legend" id="legend"></div>
+      <div class="map-context"><span id="tileStatus">Cartografía local lista · calles al conectar</span><button id="sourcesBtn">Límites INEGI · regiones sugeridas ⓘ</button></div>
+      <aside class="inspector hidden" id="inspector" aria-label="Evaluación en el mapa"></aside>
+      <div class="selection-dock hidden" id="selectionDock"></div>
+      <div class="map-steps" id="mapSteps"><span><b>01</b> Selecciona una tienda</span><span><b>02</b> Evalúa su ubicación</span><span><b>03</b> Ajusta tu propuesta</span><button id="dismissSteps" aria-label="Ocultar guía rápida">×</button></div>
+    </section>
+  </main>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <dialog id="modal"><div id="modalContent"></div></dialog>
+  <input type="file" id="scenarioFile" accept=".json,application/json" hidden>
+  <input type="file" id="excelFile" accept=".xlsx" hidden>
+  <noscript>Activa JavaScript para utilizar el mapa interactivo.</noscript>
 </body>
 </html>

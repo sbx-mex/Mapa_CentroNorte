@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 from datetime import date, datetime, timezone
@@ -111,8 +112,15 @@ def workbook_to_payload(path: str | Path) -> dict[str, Any]:
             continue
         if not row.get("Nombre Tienda"):
             errors.append(f"{label}: Nombre Tienda es obligatorio")
-        lat = _to_float(row.get("Latitud"), f"{label} Latitud", errors, False)
-        lng = _to_float(row.get("Longitud"), f"{label} Longitud", errors, False)
+        # El CMS recibido contiene tres latitudes con una coma final de pegado.
+        # Admitir solo ese caso inequívoco; otros valores siguen dando error.
+        coordinates = []
+        for field in ("Latitud", "Longitud"):
+            value = _clean(row.get(field))
+            if isinstance(value, str) and re.fullmatch(r"[+-]?\d+(?:\.\d+)?\s*,", value):
+                value = value.rstrip(",").strip()
+            coordinates.append(_to_float(value, f"{label} {field}", errors, False))
+        lat, lng = coordinates
         if lat is not None and not (-90 <= lat <= 90):
             errors.append(f"{label}: Latitud fuera de rango")
         if lng is not None and not (-180 <= lng <= 180):
@@ -134,8 +142,7 @@ def workbook_to_payload(path: str | Path) -> dict[str, Any]:
 
     missing_metrics = sorted(set(location_by_cc).difference(metric_by_cc))
     orphan_metrics = sorted(set(metric_by_cc).difference(location_by_cc))
-    if missing_metrics:
-        errors.append("CC sin indicadores: " + ", ".join(missing_metrics[:12]))
+    # Una ubicación, incluida una apertura, no necesita indicadores para mapearse.
     if orphan_metrics:
         errors.append("Indicadores sin ubicación: " + ", ".join(orphan_metrics[:12]))
 
@@ -167,6 +174,7 @@ def workbook_to_payload(path: str | Path) -> dict[str, Any]:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "source": "Excel CMS",
             "store_count": len(stores),
+            "locations_without_metrics": missing_metrics,
         },
         "stores": stores,
     }

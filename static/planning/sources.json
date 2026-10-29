@@ -1,0 +1,104 @@
+{
+  "version": "3.0.0",
+  "signature": "a78a2cb4c549d505",
+  "source": "Mapa_CentroNorte_CMS(2).xlsx",
+  "source_repo": "sbx-mex/Mapa_CentroNorte",
+  "source_commit": "53f6e9b2001880ceefb7f741352b860436121d26",
+  "store_count": 103,
+  "no_metrics": [
+    "38351",
+    "38357",
+    "38358",
+    "38375",
+    "38429",
+    "38511",
+    "38567",
+    "38678",
+    "38684",
+    "38716",
+    "38718",
+    "38790",
+    "38793",
+    "38893",
+    "38908",
+    "38910",
+    "38911",
+    "38939",
+    "38996",
+    "43034",
+    "43064",
+    "43082",
+    "43083",
+    "43164",
+    "43170",
+    "43183",
+    "43256",
+    "43261",
+    "43300",
+    "43301",
+    "43302"
+  ],
+  "unmatched_geography": [],
+  "state_conflicts": [
+    "43302"
+  ],
+  "geography": [
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgem/09",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgem/15",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgem/13",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/17",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/21",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/29",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/16",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    },
+    {
+      "url": "https://gaia.inegi.org.mx/wscatgeo/v2/geo/mgee/22",
+      "metadata": {
+        "Fuente_informacion_vectorial": "INEGI. Marco Geoestadístico, diciembre de 2025",
+        "Fuente_informacion_estadistica": "INEGI. Censo de Población y Vivienda, 2020"
+      }
+    }
+  ],
+  "regionalization": "Propuesta por orientación respecto al Zócalo: centro a 0.115 grados, resto por eje dominante. Ajustable por municipio; no es una regionalización INEGI."
+}

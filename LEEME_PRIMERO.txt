@@ -1,0 +1,25 @@
+CENTRO NORTE · MAPA DE DECISIONES 3.0
+
+1. Extrae TODO el ZIP en una carpeta.
+2. Abre index.html con Chrome o Edge.
+3. Selecciona una tienda del listado o desde su pin.
+4. Evalúa su ubicación, cambia DM/región y guarda tu decisión.
+5. Exporta el escenario para compartirlo o continuar en otro equipo.
+
+Botones clave:
+  Por DM / Por región: cambia el color de los pines.
+  Evaluar fondo: ajusta la región de cada municipio en el mapa.
+  Base / Propuesta: compara antes y después.
+  Ver reparto: revisa cómo cambian las tiendas por DM.
+  Selección de área (cuadro): marca dos esquinas en el mapa.
+  Exportar: guarda el escenario JSON o las decisiones CSV para Excel.
+
+Incluye 103 tiendas, 8 DM y 3 aperturas sin fecha.
+Las regiones de fondo son propuestas editables sobre límites de INEGI.
+La ficha de 43302 Toreo Waltmar señala una diferencia de ubicación a validar.
+
+Los pines y límites funcionan sin conexión. Las calles de INEGI requieren internet.
+Las decisiones se guardan en este navegador; para compartir, exporta el JSON.
+No hay cambios de prueba precargados ni publicación automática.
+
+El README.md contiene las instrucciones de mejora e integración al repositorio.
