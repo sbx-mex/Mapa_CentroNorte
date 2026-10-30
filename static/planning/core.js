@@ -9,6 +9,41 @@
   const REGION=rules.home_region, regions=rules.regions;
   const zones = ['Centro', 'Norte', 'Poniente', 'Sur', 'Oriente'];
   const zoneColors = {Norte:'#38859a', Poniente:'#768c56', Centro:'#00704a', Oriente:'#d39236', Sur:'#a05279'};
+  const regionColors = {'Centro Norte':'#006241','Centro Sur':'#b04270','Centro Poniente':'#7453a6','Centro Centro':'#2876b2','Bajío':'#c26a16'};
+  const isOpen = s => s.status==='Actual' && s.active!==false;
+  function regionalCounts(base,state,view='proposal') {
+    const original=base.stores.filter(isOpen),proposed=current(base,state,view).filter(isOpen);
+    return regions.map(region=>{
+      const before=original.filter(s=>s.region===region),included=proposed.filter(s=>inRegion(s,region));
+      const incoming=included.filter(s=>s.origin_region!==region),outgoing=proposed.filter(s=>s.origin_region===region&&!inRegion(s,region));
+      return {region,base:before.length,total:included.length,delta:included.length-before.length,incoming:incoming.length,outgoing:outgoing.length,available:before.length>0,stores:included,dms:[...new Set(included.map(s=>s.dm))].map(dm=>({dm,total:included.filter(s=>s.dm===dm).length}))};
+    });
+  }
+  function reconcileState(previous,base,geo) {
+    const state={...freshState(),...previous,updates:{},areas:{}};
+    const codes=new Set(base.stores.map(s=>s.cc)),ids=new Set(geo.municipalities.features.map(f=>f.properties.id));
+    for(const [cc,u] of Object.entries(previous.updates||{}))if(codes.has(cc))state.updates[cc]={...u};
+    for(const [id,zone] of Object.entries(previous.areas||{}))if(ids.has(id)&&zones.includes(zone))state.areas[id]=zone;
+    return state;
+  }
+  function auditRegions(base,state,geo,view='proposal') {
+    const stores=current(base,state,view).filter(s=>isOpen(s)&&s.decision!=='No considerar'),items=[];
+    for(const s of stores){
+      const area=findArea(s.latitude,s.longitude,geo),zone=area?mapZone(area.properties,state.areas):suggestedRegion(s.latitude,s.longitude);
+      const reasons=[];
+      if(!area)reasons.push('Fuera de los límites municipales disponibles; validar cobertura.');
+      if(s.region===REGION&&zone==='Sur')reasons.push('Centro Norte en zona geográfica Sur; revisar si la cobertura es conveniente.');
+      const peers=nearest(s,stores.filter(x=>x.region===s.region),1),near=nearest(s,stores,3);
+      if(peers.length&&peers[0].km>20)reasons.push('A '+Math.round(peers[0].km)+' km de la tienda disponible más cercana de su región.');
+      const other=near.filter(x=>x.region!==s.region&&x.km<=5);
+      if(near.length===3&&other.length===3)reasons.push('Sus tres vecinas disponibles a menos de 5 km son de otra región.');
+      const confirmed=base.stores.find(x=>x.cc===s.cc);
+      // La confirmación aplica a esta coordenada exacta, no a cambios posteriores.
+      const known=confirmed&&confirmed.location_verification&&confirmed.latitude===s.latitude&&confirmed.longitude===s.longitude;
+      if(reasons.length)items.push({cc:s.cc,store_name:s.store_name,region:s.region,zone,reasons,locationConfirmed:!!known});
+    }
+    return {checked:stores.length,items,coverage:regions.map(region=>({region,available:stores.filter(s=>s.region===region).length}))};
+  }
   // Esta capa usa límites municipales. Sus zonas por orientación son independientes
   // de las regiones comerciales y de los colores de los pines.
   function mapZone(properties,areas={}) {
@@ -196,11 +231,11 @@
     if(typeof value!=='number' && /^[=+@\-\t\r]/.test(s))s="'"+s;
     return '"'+s.replace(/"/g,'""')+'"';
   }
-  function csv(base,state) {
+  function csv(base,state,settings={}) {
     const byId=new Map(base.stores.map(s=>[s.cc,s]));
     const headers=['CeCo','Tienda','Región origen','Región propuesta','Movimiento','En Centro Norte propuesta','Estatus','Fecha apertura','Municipio Excel','Municipio por coordenada','DM base','DM propuesta','Zona base','Zona propuesta','Decisión','Notas','Latitud base','Longitud base','Latitud propuesta','Longitud propuesta'];
-    const rows=current(base,state).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude];});
+    const rows=current(base,state).filter(s=>!settings.openOnly||isOpen(s)).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude];});
     return '\uFEFF'+[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
   }
-  return {REGION,decisions,regions,rules,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
+  return {REGION,decisions,regions,rules,regionColors,isOpen,regionalCounts,reconcileState,auditRegions,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
 });

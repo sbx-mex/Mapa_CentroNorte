@@ -1,32 +1,32 @@
-CENTRO NORTE · EL MAPA PRIMERO · 4.2
+CENTRO NORTE · REGIONAL SIMPLE 4.3.0
 
-APLICAR SOBRE LA VERSIÓN 4.1
-Extrae el ZIP. Copia su contenido en la raíz del proyecto existente y reemplaza
-los archivos coincidentes. Conserva las carpetas. Sube los archivos extraídos
-a GitHub y espera la validación y publicación de Pages.
+ACTUALIZACIÓN SOBRE LA VERSIÓN 4.2 (de0b8e4).
 
-El ZIP contiene solo cambios: conserva bases, Excel, librerías y cartografía.
-No es necesario ejecutar Python para aplicar esta entrega.
+Extrae el ZIP. Copia sus ocho archivos a la raíz del proyecto existente,
+respetando las carpetas y reemplazando los coincidentes.
+Sube los archivos extraídos a GitHub. No subas el ZIP sin extraer.
+Conserva Excel, datos, librerías, cartografía y workflow actuales.
+No se necesita ejecutar Python para aplicar este cambio visual y funcional.
 
-AL ABRIR
-El mapa ocupa todo el ancho y muestra las cinco zonas con colores más visibles.
-Tiendas, Capas y Balance comienzan cerrados. Se despliegan sobre el mapa.
+REGIÓN: filtra tiendas abiertas y despliega el span por DM.
+BASE ACTUAL / MI PROPUESTA: compara sin perder ajustes.
+GUARDAR Y ACTUALIZAR CONTEO: cambia destino, color del pin y totales.
+AUDITORÍA: señales espaciales estimadas, con revisión manual.
+MIS CAMBIOS: movimientos guardados. EXPORTAR: CSV abiertas o JSON completo.
+OCULTAR MENÚS: mapa completo; recupera formularios con Mostrar menús.
 
-OCULTAR MENÚS deja toda la pantalla para el mapa.
-MOSTRAR MENÚS recupera los paneles sin perder selección ni formulario en edición.
-Cada panel también tiene su propio botón de cierre.
+BASE: 73 Centro Norte, 14 Bajío y 13 Centro Sur: 100 abiertas disponibles.
+Las tres aperturas se conservan en el respaldo, fuera del mapa y conteos.
+Los catálogos completos de las otras regiones quedan pendientes.
 
-TIENDAS: búsqueda, filtros y selección.
-CAPAS: pines, colores DM, Base/Mi propuesta y fondo geográfico.
-BALANCE: totales de la propuesta interna.
-VER ZONAS: encuadre de las cinco zonas.
-Centrar tiendas visibles: regresa a las tiendas filtradas.
+Conservamos las propuestas anteriores del mismo sitio/navegador.
+Los borradores se recuperan por tienda; aplica Guardar para contarlos.
+No hay sincronización entre equipos. Exporta antes de borrar el navegador.
 
-Centro, Norte, Poniente, Sur y Oriente corresponden a agrupaciones por
-orientación sobre límites municipales de INEGI. Las regiones internas
-Starbucks permanecen independientes para tomar o ceder tiendas.
+Los pines usan cinco colores de REGIÓN STARBUCKS.
+El fondo usa cinco colores de ORIENTACIÓN GEOGRÁFICA, sin rótulos grandes.
+INEGI aporta límites municipales; las zonas no son regionalización oficial.
+Toreo Walmart conserva su coordenada confirmada.
 
-Se conservan 73 tiendas actuales + 3 aperturas de Centro Norte y 27 opciones
-externas. Toreo Walmart conserva su coordenada confirmada.
-
-Validación: 20 pruebas Python + 30 JavaScript y revisión de menús en navegador.
+Validación: 20 pruebas Python y 36 JavaScript; ocho archivos en el ZIP.
+GitHub Actions y Pages ejecutarán la validación remota al subirlos.

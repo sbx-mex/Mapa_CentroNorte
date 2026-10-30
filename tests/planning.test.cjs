@@ -101,7 +101,7 @@ test('Toreo Walmart conserva su coordenada confirmada y no genera aviso pendient
  const store=base.stores.find(s=>s.cc==='43302');assert.equal(store.latitude,19.4506098125196);assert.equal(store.longitude,-99.2180774805589);assert.ok(store.location_verification);assert.ok(!health.warnings.some(w=>w.cc===store.cc));
 });
 
-test('el fondo municipal muestra cinco colores geográficos aunque todos los pines sean verdes',()=>{
+test('el fondo municipal muestra cinco colores geográficos independientes de los pines',()=>{
  const features=geo.municipalities.features,colors=new Set(features.map(f=>C.cartographicStyle(f.properties).fillColor));
  assert.deepEqual(C.zones,['Centro','Norte','Poniente','Sur','Oriente']);assert.equal(colors.size,5);
  for(const f of features)assert.equal(C.cartographicStyle(f.properties).fillColor,C.zoneColors[C.mapZone(f.properties)]);
@@ -128,4 +128,42 @@ test('la copia recupera ajustes cartográficos y regiones internas sin cruzar as
  const state=C.freshState(),f=geo.municipalities.features[0];C.setMapZone(state,f.properties.id,'Oriente');state.updates[home.cc]=C.proposalUpdate(home,'Centro Poniente');
  const restored=C.readScenario(clone(C.pack(base,state)),base,geo).state;
  assert.equal(C.mapZone(f.properties,restored.areas),'Oriente');assert.equal(C.current(base,restored).find(s=>s.cc===home.cc).region,'Centro Poniente');assert.equal(C.current(base,restored,'base').find(s=>s.cc===home.cc).region,home.region);
+});
+
+test('solo abiertas: span regional excluye aperturas e inactivas, conserva la base completa',()=>{
+ const state=C.freshState(),before=JSON.stringify(base);
+ const rows=C.regionalCounts(base,state),homeRow=rows.find(x=>x.region===C.REGION);
+ assert.equal(homeRow.total,73);assert.equal(homeRow.base,73);assert.equal(rows.reduce((n,x)=>n+x.total,0),100);
+ assert.equal(rows.find(x=>x.region==='Centro Centro').available,false);
+ const future=clone(base);future.stores.find(s=>s.cc===home.cc).active=false;
+ assert.equal(C.regionalCounts(future,state).find(x=>x.region===C.REGION).total,72);
+ assert.equal(JSON.stringify(base),before);assert.equal(C.isOpen(opening),false);
+});
+test('tomar y ceder actualizan span y DM de todas las regiones sin duplicar tiendas',()=>{
+ const state=C.freshState();state.updates[home.cc]=C.proposalUpdate(home,'Centro Sur');state.updates[away.cc]={...C.proposalUpdate(away,C.REGION),dm:'DM nuevo'};
+ const rows=C.regionalCounts(base,state),cn=rows.find(r=>r.region===C.REGION),cs=rows.find(r=>r.region==='Centro Sur');
+ assert.equal(cn.total,73);assert.equal(cn.incoming,1);assert.equal(cn.outgoing,1);assert.equal(cs.total,14);assert.equal(cn.dms.find(x=>x.dm==='DM nuevo').total,1);
+ assert.equal(rows.reduce((n,r)=>n+r.total,0),100);assert.equal(C.regionalCounts(base,state,'base').find(r=>r.region===C.REGION).total,73);
+ state.updates[opening.cc]=C.proposalUpdate(opening,'Centro Centro');assert.equal(C.regionalCounts(base,state).find(r=>r.region==='Centro Centro').total,0);
+});
+test('cada región Starbucks tiene color propio independiente del fondo y del DM',()=>{
+ assert.equal(new Set(Object.values(C.regionColors)).size,5);for(const r of C.regions)assert.match(C.regionColors[r],/^#[0-9a-f]{6}$/i);
+ const state=C.freshState();state.updates[home.cc]={dm:'DM futuro',...C.proposalUpdate(home,'Centro Sur')};
+ assert.equal(C.regionColors[C.current(base,state).find(s=>s.cc===home.cc).region],C.regionColors['Centro Sur']);
+});
+test('actualizar la fuente conserva ajustes conocidos, áreas y notas; no los reinicia',()=>{
+ const state=C.freshState();state.updates[home.cc]={...C.proposalUpdate(home,'Centro Sur'),notes:'Conservar avance'};state.updates['99999']={notes:'Fuera de esta base'};const id=geo.municipalities.features[0].properties.id;state.areas[id]='Sur';state.extraDms=['Otro DM'];
+ const result=C.reconcileState(state,base,geo);assert.deepEqual(result.updates[home.cc],state.updates[home.cc]);assert.equal(result.areas[id],'Sur');assert.deepEqual(result.extraDms,['Otro DM']);assert.equal(result.updates['99999'],undefined);assert.ok(state.updates['99999']);
+ assert.deepEqual(C.readScenario(clone(C.pack(base,result)),base,geo).state,result);
+});
+test('auditoría estima señales sin alterar asignaciones y usa geografía real del fondo',()=>{
+ const data=clone(base);data.stores.find(s=>s.cc===home.cc).latitude=19.15;data.stores.find(s=>s.cc===home.cc).longitude=-99.14;
+ const state=C.freshState(),before=JSON.stringify({data,state}),audit=C.auditRegions(data,state,geo);
+ const issue=audit.items.find(s=>s.cc===home.cc);assert.ok(issue);assert.equal(issue.zone,'Sur');assert.ok(issue.reasons.some(x=>x.includes('zona geográfica Sur')));assert.equal(audit.checked,100);assert.equal(JSON.stringify({data,state}),before);
+ assert.ok(!audit.items.some(s=>s.cc===opening.cc));
+});
+test('CSV de abiertas deja aperturas en el respaldo completo sin contarlas en Excel',()=>{
+ const state=C.freshState();state.updates[opening.cc]={notes:'Avance de apertura'};
+ const rows=C.csv(base,state,{openOnly:true}).split('\r\n');assert.equal(rows.length,101);assert.ok(!rows.some(r=>r.startsWith('"'+opening.cc+'"')));
+ assert.equal(C.readScenario(clone(C.pack(base,state)),base,geo).state.updates[opening.cc].notes,'Avance de apertura');
 });
