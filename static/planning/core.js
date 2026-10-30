@@ -19,8 +19,8 @@
   }
   function cartographicStyle(properties,areas={},settings={}) {
     const visible=settings.visible!==false,selected=properties.id===settings.selectedId;
-    const intensity=Number.isFinite(settings.opacity)?Math.min(.55,Math.max(.05,settings.opacity)):.27;
-    return {color:selected?'#244b3a':'#ffffff',weight:selected?2.3:.85,fillColor:zoneColors[mapZone(properties,areas)],fillOpacity:visible?intensity:0,opacity:visible?.88:.2};
+    const intensity=Number.isFinite(settings.opacity)?Math.min(.75,Math.max(.05,settings.opacity)):.5;
+    return {color:selected?'#244b3a':'#ffffff',weight:selected?2.3:.55,fillColor:zoneColors[mapZone(properties,areas)],fillOpacity:visible?intensity:0,opacity:visible?.88:.2};
   }
   function setMapZone(state,id,zone) {
     if(!id||!zones.includes(zone))throw new Error('Asignación cartográfica inválida.');

@@ -1,69 +1,74 @@
-# Centro Norte · Mesa de propuesta regional 4.1
+# Centro Norte · Mapa y propuesta regional 4.2
 
-Herramienta para que el Regional conserve, tome y ceda tiendas en un solo mapa. La región de origen se mantiene como referencia; cada cambio se guarda como propuesta.
+La apertura da prioridad al mapa. Muestra las cinco zonas geográficas, colores de fondo más intensos y toda la superficie de trabajo, con menús cerrados que se despliegan encima del mapa.
 
-| Base de origen | Tiendas actuales | Aperturas | Ubicaciones |
+## Menús a demanda
+
+| Control | Acción |
+| --- | --- |
+| Tiendas | Abre búsqueda, filtros, selección y nombre del escenario en un panel lateral superpuesto. |
+| Capas | Abre Base/Mi propuesta, mostrar u ocultar tiendas, colores por DM y ajustes del fondo. |
+| Balance | Muestra los totales de Centro Norte cuando se necesitan. |
+| Ver zonas | Encuadra el territorio completo con las cinco zonas geográficas. |
+| Centrar tiendas visibles | Acerca el mapa a las tiendas que cumplen los filtros. |
+| Ocultar menús | Oculta encabezado, paneles, leyenda y controles; el mapa ocupa la pantalla de trabajo completa. |
+| Mostrar menús | Recupera los controles y los paneles que estaban abiertos. Conserva la selección, el formulario en edición y las decisiones guardadas. |
+| Propuesta | Abre el resumen de movimientos y balance entre regiones internas. |
+| Exportar | Descarga CSV para Excel o JSON con el escenario completo. |
+
+Los menús no reducen el ancho del mapa. Sus botones mantienen los estados de apertura accesibles; el listado, capas y balance tienen cierre propio. Escape cierra paneles o recupera los controles de la vista Solo mapa. El atajo `/` abre Tiendas y enfoca la búsqueda.
+
+Al abrir o recargar, el mapa vuelve a mostrar el territorio y los paneles comienzan cerrados. Las decisiones guardadas se recuperan del navegador. Ocultar menús no reinicia la propuesta ni reencuadra una ubicación que se esté revisando.
+
+## Dos capas independientes
+
+- **Fondo cartográfico:** Centro, Norte, Poniente, Sur y Oriente, sobre los 225 límites municipales/de alcaldías INEGI que ya tiene el proyecto. Se abre con intensidad de 50%, regulable entre 5% y 75%, y nombres de zona más grandes.
+- **Tiendas Starbucks:** regiones internas para conservar, tomar o ceder. Ocultar DM conserva los cinco colores del fondo. Capas también permite ocultar los pines para revisar solo la geografía.
+
+Los límites proceden del Marco Geoestadístico INEGI registrado en el proyecto, diciembre de 2025. Las cinco zonas son agrupaciones de referencia por orientación, ajustables por municipio; no se presentan como una regionalización oficial de INEGI. Se conservan las geometrías de origen.
+
+Pintar un municipio modifica únicamente su fondo. No cambia CeCo, DM, región interna, coordenadas ni balance. La intensidad mayor y las líneas municipales más finas permiten distinguir mejor las zonas.
+
+## Base de origen
+
+| Región interna | Tiendas actuales | Aperturas | Ubicaciones |
 | --- | ---: | ---: | ---: |
 | Centro Norte | 73 | 3 | 76 |
 | Bajío · David Carrasco | 14 | 0 | 14 |
-| Centro Sur · Moni Morales / Mónica Morales | 13 | 0 | 13 |
-| Total disponible en el mapa | 100 | 3 | 103 |
+| Centro Sur · Mónica Morales | 13 | 0 | 13 |
+| Total disponible | 100 | 3 | 103 |
 
-Centro Centro y Centro Poniente están disponibles como destinos. Sus cifras representan únicamente las tiendas que reciban en esta propuesta; la base actual no incluye sus portafolios completos.
+Centro Centro y Centro Poniente siguen disponibles como destinos. Sus cifras corresponden solo a las ubicaciones incluidas en este mapa. Moni Morales del Excel se presenta como Mónica Morales en la interfaz.
 
-## Aplicar el ZIP de mejora
+Toreo Walmart, CeCo 43302 (Toreo Waltmar en el Excel), conserva **19.4506098125196, -99.2180774805589** y su confirmación del Regional.
 
-Es una actualización incremental sobre la versión 4.0 de `sbx-mex/Mapa_CentroNorte`, base `f244ad0`. Contiene únicamente archivos nuevos o modificados.
+## Aplicar el ZIP
 
-1. Extrae el ZIP y copia su contenido en la **raíz del proyecto existente**, conservando las carpetas y reemplazando los archivos coincidentes.
-2. Conserva el Excel de `cms/`, `static/planning/geography.js`, las librerías de `static/vendor/` y los demás archivos del proyecto.
-3. Sube el contenido extraído a GitHub. Conserva el workflow `.github/workflows/ci.yml` que ya tiene el proyecto. No subas el ZIP como un archivo del sitio ni lo dejes dentro de una subcarpeta.
-4. Espera la ejecución de **Validación de propuesta regional** y la publicación de GitHub Pages. Abre el mapa y comprueba que diga **Base validada** y **73 actuales + 3 aperturas**.
+Actualización incremental sobre `sbx-mex/Mapa_CentroNorte`, versión 4.1, commit `ef83152`.
 
-La base y su revisión de la versión 4.0 se conservan sin cambios. No es necesario ejecutar Python para aplicar esta entrega sobre la versión indicada. El estado de la nueva ejecución en GitHub se confirma al terminar esa carga; las verificaciones locales se describen en `AUDITORIA_4_1.md`.
+1. Extrae `Mapa_CentroNorte_Mapa_Principal_4_2_0.zip`.
+2. Copia su contenido en la **raíz del proyecto existente**, conservando carpetas y reemplazando archivos coincidentes.
+3. Conserva Excel, bases, librerías, cartografía, configuración regional y workflow existentes. No subas el ZIP como archivo del sitio ni lo dejes dentro de una subcarpeta.
+4. Sube los archivos extraídos y espera la validación de GitHub Actions y la publicación de Pages. Comprueba Base validada.
 
-## Proponer con el mapa
+No es necesario regenerar datos con Python para aplicar este ajuste. Los scripts modificados y el nuevo CSS llevan versión 4.2.0 en `index.html`.
 
-- **Selecciona un pin o una tienda.** La ficha muestra región de origen y región propuesta.
-- **Tomar:** elige Centro Norte como destino de una tienda externa.
-- **Ceder:** elige Centro Sur, Bajío, Centro Centro o Centro Poniente como destino de una tienda propia.
-- **Conservar:** deja Centro Norte para una tienda propia. Guarda para marcarla como revisada.
-- **Guardar en la propuesta:** confirma la decisión y actualiza el balance completo, aunque tengas filtros activos.
-- **Mostrar DM / Ocultar DM:** enciende o apaga los colores por responsable. Los pines iniciales usan un solo verde; las opciones externas son huecas, las entradas llevan + y las salidas ↗. El fondo mantiene sus cinco colores geográficos.
-- **Base actual / Mi propuesta:** compara las dos estructuras. Cambiar de vista no borra decisiones.
-- **Casillas o selección por área:** reúne tiendas y usa Proponer selección para asignarles un destino común.
-- **Todas / Mi región / Opciones / Cambios:** muestra todo, la región propuesta, los orígenes externos o los movimientos.
-- **Revisar propuesta:** consulta el balance entre regiones y el detalle de entradas y salidas. Las cifras no dependen de los filtros del mapa.
-- **Exportar propuesta:** descarga CSV para Excel o JSON con el escenario completo.
-- **Deshacer:** recupera el cambio anterior durante la sesión.
+## Propuestas y continuidad
 
-Las propuestas se guardan en este navegador. Una descarga JSON conserva una copia para continuidad técnica; la interfaz no tiene botón Cargar ni importación de archivos. Las decisiones no modifican por sí mismas la base oficial.
+Selecciona una tienda en el mapa o el listado. En Región interna propuesta, elige Centro Norte para conservar una propia o tomar una externa; elige otra región para ceder una propia. Guarda para confirmar el movimiento. Las casillas o el botón de área permiten asignar un destino común a varias tiendas.
 
-Si se encuentra una propuesta 3.x sobre las mismas ubicaciones, conserva notas, evaluaciones y asignaciones, aplicando las regiones de origen corregidas. Cuando cambia la fuente, respalda el escenario previo en el navegador y abre uno compatible. La vista Base permanece independiente.
+La base permanece independiente de la propuesta. Cambiar DM o zona no cambia la región interna. El balance completo y el CSV conservan origen y destino. El guardado automático es local al navegador; el JSON conserva una copia técnica. La interfaz no incluye carga ni importación manual de archivos. Una propuesta compatible anterior se recupera y, si cambia su fuente, el escenario previo se respalda antes de iniciar uno compatible.
 
-## Reglas regionales y Toreo Walmart
+## Actualizar datos en el futuro
 
-`static/planning/regional-rules.json` es la configuración compartida por Python y el motor JavaScript. Define las cinco regiones y las asignaciones de origen de David Carrasco y Mónica Morales. Se reconoce el nombre Moni Morales del Excel; la interfaz muestra Mónica Morales.
+1. Edita `cms/Mapa_CentroNorte_CMS.xlsx`, hoja Ubicaciones. Conserva CC, Nombre Tienda, DM, Fecha Apertura, Municipio, Cobertura, Latitud y Longitud.
+2. La columna opcional Región define un origen comercial explícito. Si está vacía, se aplican las reglas de DM de `static/planning/regional-rules.json` y Centro Norte para los demás responsables. Las filas sin fecha son Aperturas.
+3. Ejecuta `python ACTUALIZAR_MAPA.py --no-open` con Python 3.10 o posterior.
+4. Sube Excel e instantáneas regeneradas: `index.html`, `static/planning/base.js`, `static/planning/insights.js`. Incluye las reglas regionales si las cambiaste.
 
-Toreo Walmart, CeCo **43302** (Toreo Waltmar en el Excel), conserva exactamente **19.4506098125196, -99.2180774805589**. La confirmación del Regional elimina el aviso pendiente de esta coordenada; no se mueve el pin. La confirmación solo se aplica mientras esas coordenadas sean las mismas.
+Un error conserva la base previa y bloquea el indicador. `--check` no escribe y comprueba los datos y los totales de la revisión. Las calles requieren conexión al servicio INEGI; el fondo y los pines son locales. Las distancias son en línea recta.
 
-Cambiar DM, zona o color no cambia la región. La zona geográfica es una referencia del fondo INEGI; el destino comercial se elige expresamente en Región propuesta.
-
-## Actualizar la base después
-
-1. Actualiza `cms/Mapa_CentroNorte_CMS.xlsx`, hoja **Ubicaciones**.
-2. Conserva CC, Nombre Tienda, DM, Fecha Apertura, Municipio, Cobertura, Latitud y Longitud. La columna opcional **Región** permite especificar un origen comercial; cuando está vacía se aplican las reglas de DM y, para los demás responsables, Centro Norte.
-3. Ejecuta Python 3.10 o posterior:
-
-```bash
-python ACTUALIZAR_MAPA.py --no-open
-```
-
-4. Sube el Excel y los archivos regenerados: `index.html`, `static/planning/base.js`, `static/planning/insights.js`. Si modificaste reglas regionales, sube también `regional-rules.json`.
-
-Las filas sin fecha son Aperturas. Python valida CeCo, coordenadas, fechas, regiones y recursos locales; prepara cercanías y totales. Un error conserva la base anterior y bloquea el indicador. `--check` no escribe y también detecta totales regionales incorrectos en una revisión que declare estado verde.
-
-## Verificaciones
+## Verificación
 
 ```bash
 python -m compileall -q .
@@ -74,23 +79,4 @@ python -m unittest discover -s tests -v
 node --test tests/planning.test.cjs
 ```
 
-20 pruebas Python y 30 pruebas JavaScript. La navegación, el guardado, el balance, tomar, ceder, selección múltiple, deshacer, la vista DM y Toreo se revisaron en navegador.
-
-El mapa base de calles de INEGI requiere conexión; el fondo municipal y los pines son locales. Las distancias son en línea recta y no representan tiempos ni rutas de traslado.
-
-## Fondo cartográfico 4.1
-
-El fondo tiene cinco colores permanentes: **Centro, Norte, Poniente, Sur y Oriente**. Esta capa es independiente de las regiones internas de Starbucks y de Mostrar/Ocultar DM. Al ocultar DM, los pines quedan verdes y el fondo mantiene sus colores por zona.
-
-Los polígonos corresponden a los límites municipales y de alcaldías INEGI que ya contiene el proyecto (225 áreas de CDMX, Estado de México e Hidalgo). Las cinco zonas son una **agrupación de referencia por orientación**, ajustable por municipio; no son una regionalización oficial de INEGI. Se conserva la geometría original.
-
-- **Fondo geográfico:** muestra u oculta los colores, regula su intensidad y controla nombres de zonas o municipios.
-- **Pintar solo este fondo:** cambia únicamente la zona de ese municipio. No cambia CeCo, DM, región interna, evaluación, coordenadas ni balance.
-- **Ver territorio completo:** encuadra el fondo completo para identificar las cinco zonas. El control Centrar tiendas visibles vuelve al encuadre de tiendas.
-- **Leyenda:** distingue Tiendas · Starbucks de Fondo · Zonas geográficas.
-
-Los ajustes del fondo se conservan al alternar Base actual / Mi propuesta o Mostrar / Ocultar DM. Se siguen guardando dentro de la copia del escenario, de forma independiente de las propuestas por tienda.
-
-El ZIP **Mapa_CentroNorte_Fondo_Geografico_4_1_0.zip** contiene solo los cambios sobre la versión 4.0 del repositorio, commit `f244ad0`. Extrae su contenido en la raíz del proyecto existente y reemplaza los archivos coincidentes. Conserva Excel, bases, cartografía y librerías existentes; no hay que regenerar datos para este ajuste.
-
-Validación de esta entrega: 20 pruebas Python y 30 JavaScript, incluidas cinco sobre la independencia de la cartografía y las regiones internas. GitHub Actions las ejecuta con el workflow existente al subir los archivos.
+20 pruebas Python y 30 JavaScript, además de revisión de menús y edición en navegador. El paquete se comprueba aplicado sobre una copia limpia del commit de origen. La nueva ejecución de GitHub se confirma cuando se suban los archivos.

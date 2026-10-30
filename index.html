@@ -4,37 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#006241">
-  <meta name="description" content="Mesa regional Centro Norte: conserva, toma y cede tiendas en un solo mapa. Compara la base con tu propuesta regional.">
-  <title>Centro Norte · Propuesta regional</title>
+  <meta name="description" content="Mapa de cinco zonas geográficas sobre límites INEGI. Abre tiendas, capas y balance cuando los necesites para construir tu propuesta regional.">
+  <title>Centro Norte · Mapa y propuesta regional</title>
   <link rel="icon" href="static/planning/compass.svg" type="image/svg+xml">
   <link rel="stylesheet" href="static/vendor/leaflet.css">
   <link rel="stylesheet" href="static/vendor/MarkerCluster.css">
   <link rel="stylesheet" href="static/planning/planning.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/quality.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/regional.css?v=4.1.0">
+  <link rel="stylesheet" href="static/planning/map-view.css?v=4.2.0">
   <script defer src="static/vendor/leaflet.js"></script>
   <script defer src="static/vendor/leaflet.markercluster.js"></script>
   <script defer src="static/planning/geography.js"></script>
   <script defer src="static/planning/base.js?v=eff554032ac83600f0fa"></script>
   <script defer src="static/planning/insights.js?v=eff554032ac83600f0fa"></script>
-  <script defer src="static/planning/core.js?v=4.1.0"></script>
-  <script defer src="static/planning/app.js?v=4.1.0"></script>
+  <script defer src="static/planning/core.js?v=4.2.0"></script>
+  <script defer src="static/planning/app.js?v=4.2.0"></script>
 </head>
-<body class="regional-view">
+<body class="regional-view map-first">
   <a class="skip-link" href="#search">Ir al listado de tiendas</a>
   <header class="topbar">
-    <a class="brand" href="#" aria-label="Centro Norte, inicio"><img src="static/planning/compass.svg" alt=""><span>CENTRO NORTE<small>MESA DE PROPUESTA REGIONAL</small></span></a>
-    <div class="scenario-name"><span class="live-dot"></span><label for="scenarioName">Propuesta</label><input id="scenarioName" value="Propuesta Centro Norte" maxlength="80" aria-label="Nombre del escenario"><span id="saveState">Guardado en este equipo</span></div>
+    <a class="brand" href="#" aria-label="Centro Norte, inicio"><img src="static/planning/compass.svg" alt=""><span>CENTRO NORTE<small>MAPA DEL TERRITORIO</small></span></a>
+    <span class="header-context">Cinco zonas geográficas <i>·</i> Propuestas internas independientes</span>
     <nav class="header-actions" aria-label="Acciones de propuesta">
       <button id="reviewBtn" class="health-badge" aria-label="Revisar información"><span class="health-dot"></span><span id="healthText">Verificando base…</span></button>
-      <button id="summaryBtn" class="secondary">Revisar propuesta</button>
+      <button id="summaryBtn" class="secondary">Propuesta</button>
       <button id="guideBtn" class="quiet" aria-label="Cómo usar el mapa">?</button>
-      <button id="exportBtn" class="primary">Exportar propuesta <span aria-hidden="true">↗</span></button>
+      <button id="exportBtn" class="primary">Exportar <span aria-hidden="true">↗</span></button>
     </nav>
   </header>
+  <button id="menusToggle" class="menus-toggle" aria-pressed="false" aria-label="Ocultar menús y ampliar el mapa"><span class="menu-toggle-icon" aria-hidden="true">⛶</span><span id="menusToggleText">Ocultar menús</span></button>
   <main class="workspace">
-    <aside class="sidebar" id="sidebar" aria-label="Directorio y filtros">
-      <div class="sidebar-heading"><button id="closeListBtn" class="close-list" aria-label="Cerrar listado">×</button><div class="eyebrow">EL TERRITORIO QUE VIENE</div><h1>Diseña tu región<span class="title-dot">.</span></h1><p>Selecciona. Propón. Mira cómo queda.</p></div>
+    <aside class="sidebar" id="sidebar" aria-label="Tiendas y filtros" hidden>
+      <div class="sidebar-heading"><button id="closeListBtn" class="close-list" aria-label="Cerrar tiendas y filtros">×</button><div class="eyebrow">PROPUESTA INTERNA · STARBUCKS</div><h1>Tiendas y filtros<span class="title-dot">.</span></h1></div>
+      <div class="scenario-name"><label for="scenarioName">Nombre de tu propuesta</label><input id="scenarioName" value="Propuesta Centro Norte" maxlength="80" aria-label="Nombre del escenario"><span id="saveState">Guardado en este equipo</span></div>
       <div class="scope-summary" id="scopeSummary"></div>
       <button class="quality-card" id="qualityCard" aria-label="Ver revisión de la información"></button>
       <div class="filters">
@@ -48,24 +51,35 @@
       <div class="store-list" id="storeList" aria-label="Listado de tiendas"></div>
       <div class="sidebar-footer"><button id="teamBtn" class="quiet dm-only">DM y colores</button><div id="completionMeter" class="completion-meter"></div></div>
     </aside>
-    <section class="map-workspace" aria-label="Mapa interactivo de propuesta regional">
-      <div id="map" role="region" aria-label="Fondo de zonas geográficas y tiendas con regiones internas independientes"></div>
-      <div class="map-heading"><div><span class="eyebrow">FONDO GEOGRÁFICO · PROPUESTA INTERNA</span><h2>Centro Norte, como la propones.</h2></div><span class="region-pill" id="viewLabel">VISTA PROPUESTA</span></div>
-      <div class="regional-balance" id="regionalBalance" aria-label="Balance de la propuesta" aria-live="polite"></div>
-      <div class="map-topbar">
-        <button class="mobile-list secondary" id="mobileListBtn">☰ Tiendas</button>
-        <div class="map-control-group"><div class="segmented" aria-label="Comparar base y propuesta"><button data-view="base" aria-pressed="false">Base actual</button><button data-view="proposal" class="active" aria-pressed="true">Mi propuesta</button></div></div>
+    <section class="map-workspace" aria-label="Mapa interactivo de zonas y propuesta regional">
+      <div id="map" role="region" aria-label="Cinco zonas geográficas sobre límites INEGI y tiendas con regiones internas independientes"></div>
+      <nav class="map-launchers" aria-label="Menús del mapa">
+        <button id="mobileListBtn" aria-expanded="false" aria-controls="sidebar"><span aria-hidden="true">☰</span> Tiendas</button>
+        <button id="controlsToggle" aria-expanded="false" aria-controls="mapControlsPanel"><span aria-hidden="true">▧</span> Capas</button>
+        <button id="balanceToggle" aria-expanded="false" aria-controls="balancePanel">Balance <b id="balanceCount">76</b></button>
+        <button id="territoryBtn" title="Ver las cinco zonas geográficas">Ver zonas</button>
+      </nav>
+      <section class="map-topbar floating-panel" id="mapControlsPanel" aria-label="Capas y vistas del mapa" hidden>
+        <div class="popover-heading"><strong>Capas del mapa</strong><button data-action="close-controls" aria-label="Cerrar capas">×</button></div>
+        <div class="map-control-group"><span class="control-caption">PROPUESTA STARBUCKS</span><div class="segmented" aria-label="Comparar base y propuesta"><button data-view="base" aria-pressed="false">Base actual</button><button data-view="proposal" class="active" aria-pressed="true">Mi propuesta</button></div></div>
+        <button id="pinsToggle" class="map-action" aria-pressed="true">Ocultar tiendas del mapa</button>
         <button id="dmToggle" class="map-action dm-toggle" aria-pressed="false"><span class="toggle-track" aria-hidden="true"></span><span id="dmToggleText">Mostrar DM</span></button>
-        <button id="backgroundBtn" class="map-action" aria-pressed="false">Fondo geográfico</button>
+        <button id="backgroundBtn" class="map-action" aria-pressed="false">Ajustar fondo geográfico ↗</button>
         <span class="view-helper" id="viewHelper">Pines verdes · fondo por zonas</span>
-      </div>
+        <span class="view-label" id="viewLabel">VISTA PROPUESTA</span>
+        <div id="pinLegend" class="pin-legend"></div>
+      </section>
+      <section class="balance-panel floating-panel" id="balancePanel" aria-label="Balance de la propuesta interna" hidden>
+        <div class="popover-heading"><strong>Balance de Centro Norte</strong><button data-action="close-balance" aria-label="Cerrar balance">×</button></div>
+        <div class="regional-balance" id="regionalBalance" aria-label="Balance de la propuesta" aria-live="polite"></div>
+      </section>
       <div class="map-tools"><button id="fitBtn" title="Ver todas las tiendas filtradas" aria-label="Centrar tiendas visibles">⌖</button><button id="areaBtn" title="Seleccionar tiendas en un área" aria-label="Seleccionar tiendas en un área">▣</button><button id="undoBtn" title="Deshacer último cambio" aria-label="Deshacer último cambio" disabled>↶</button></div>
       <div class="map-status" id="mapStatus"><span class="live-dot"></span><span>Selecciona un pin para proponer su región</span></div>
-      <div class="legend" id="legend"></div>
+      <div class="legend" id="legend" aria-label="Leyenda de zonas geográficas"></div>
       <div class="map-context"><span id="tileStatus">Cartografía local lista · calles al conectar</span><button id="sourcesBtn">Límites INEGI · zonas por orientación ⓘ</button></div>
       <aside class="inspector hidden" id="inspector" aria-label="Proponer tienda en el mapa"></aside>
       <div class="selection-dock hidden" id="selectionDock"></div>
-      <div class="map-steps" id="mapSteps"><span><b>01</b> Elige una tienda</span><span><b>02</b> Toma o cede</span><span><b>03</b> Revisa el balance</span><button id="dismissSteps" aria-label="Ocultar guía rápida">×</button></div>
+      <div class="map-steps hidden" id="mapSteps"><span><b>01</b> Elige una tienda</span><span><b>02</b> Toma o cede</span><span><b>03</b> Revisa el balance</span><button id="dismissSteps" aria-label="Ocultar guía rápida">×</button></div>
     </section>
   </main>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

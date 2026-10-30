@@ -1,27 +1,32 @@
-CENTRO NORTE · FONDO GEOGRÁFICO 4.1
+CENTRO NORTE · EL MAPA PRIMERO · 4.2
 
-Aplicar sobre la mejora regional 4.0 ya instalada.
+APLICAR SOBRE LA VERSIÓN 4.1
+Extrae el ZIP. Copia su contenido en la raíz del proyecto existente y reemplaza
+los archivos coincidentes. Conserva las carpetas. Sube los archivos extraídos
+a GitHub y espera la validación y publicación de Pages.
 
-1. Extrae el ZIP.
-2. Copia su CONTENIDO en la raíz del proyecto Mapa_CentroNorte existente.
-3. Conserva las carpetas y reemplaza los archivos coincidentes.
-4. Sube los archivos extraídos a GitHub y espera validación y publicación.
+El ZIP contiene solo cambios: conserva bases, Excel, librerías y cartografía.
+No es necesario ejecutar Python para aplicar esta entrega.
 
-CAMBIO
-El fondo tiene cinco zonas de referencia: Centro, Norte, Poniente, Sur y Oriente.
-Los límites municipales son de INEGI; la agrupación por orientación es una
-referencia ajustable, no una regionalización oficial de INEGI.
+AL ABRIR
+El mapa ocupa todo el ancho y muestra las cinco zonas con colores más visibles.
+Tiendas, Capas y Balance comienzan cerrados. Se despliegan sobre el mapa.
 
-Los colores se aplican únicamente al fondo. Mostrar/Ocultar DM modifica los
-pines. Las regiones internas Starbucks se conservan para tomar o ceder tiendas.
+OCULTAR MENÚS deja toda la pantalla para el mapa.
+MOSTRAR MENÚS recupera los paneles sin perder selección ni formulario en edición.
+Cada panel también tiene su propio botón de cierre.
 
-Fondo geográfico permite controlar intensidad, nombres y zona del municipio.
-Pintar solo este fondo no cambia tiendas, DM, regiones internas ni balance.
-Ver territorio completo encuadra las cinco zonas; Centrar tiendas visibles
-regresa a las tiendas.
+TIENDAS: búsqueda, filtros y selección.
+CAPAS: pines, colores DM, Base/Mi propuesta y fondo geográfico.
+BALANCE: totales de la propuesta interna.
+VER ZONAS: encuadre de las cinco zonas.
+Centrar tiendas visibles: regresa a las tiendas filtradas.
 
-El ZIP incluye únicamente archivos nuevos o modificados. Conserva Excel,
-bases, librerías y cartografía. No necesitas ejecutar Python para aplicarlo.
+Centro, Norte, Poniente, Sur y Oriente corresponden a agrupaciones por
+orientación sobre límites municipales de INEGI. Las regiones internas
+Starbucks permanecen independientes para tomar o ceder tiendas.
 
-Validación: 20 pruebas Python + 30 JavaScript y revisión en navegador.
-La ejecución en GitHub Actions se confirma al terminar la carga.
+Se conservan 73 tiendas actuales + 3 aperturas de Centro Norte y 27 opciones
+externas. Toreo Walmart conserva su coordenada confirmada.
+
+Validación: 20 pruebas Python + 30 JavaScript y revisión de menús en navegador.

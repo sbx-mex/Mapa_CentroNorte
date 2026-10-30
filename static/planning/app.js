@@ -1,4 +1,4 @@
-/* Centro Norte 4.1 · Fondo cartográfico y regiones internas independientes. */
+/* Centro Norte 4.2 · El mapa abre a pantalla completa de trabajo; menús a demanda. */
 (() => {
   'use strict';
   const C=window.PlanningCore, geo=window.MAPA_GEO, $=id=>document.getElementById(id), e=C?C.escape:String;
@@ -7,7 +7,8 @@
   }
   const STORAGE='centronorte-planning-v4';
   let base=window.MAPA_BASE,state=C.freshState(), view='proposal', colorMode='regional', focus=null, areaFocus=null;
-  let inspectorMode=null,selected=new Set(), history=[], nearbyOn=false, moving=false, showBackground=true, showLabels=false,showZoneLabels=true,showNeighbors=true, opacity=0.27;
+  let inspectorMode=null,selected=new Set(), history=[], nearbyOn=false, moving=false, showBackground=true, showLabels=false,showZoneLabels=true,showNeighbors=true, opacity=0.5;
+  let menusVisible=true,pinsVisible=true;
   let areaMode=false,areaStart=null,areaRectangle=null, toastTimer, tileErrors=0;
   let cachedStores=[],visible=[], markers=new Map();
   const filter={search:'',dm:'',zone:'',status:'',decision:'',origin:'',scope:'all'};
@@ -41,7 +42,7 @@
       if(areaMode){onAreaClick(event.latlng);return;}
       if(inspectorMode==='background'){areaFocus=feature.properties.id;renderBackgroundInspector();renderBackground();L.DomEvent.stopPropagation(event);}
     });
-    layer.on('mouseover',()=>{if(inspectorMode==='background')layer.setStyle({weight:2,color:C.zoneColors[areaZone(feature.properties)],fillOpacity:showBackground?Math.min(.6,opacity+.1):0});});
+    layer.on('mouseover',()=>{if(inspectorMode==='background')layer.setStyle({weight:2,color:C.zoneColors[areaZone(feature.properties)],fillOpacity:showBackground?Math.min(.85,opacity+.1):0});});
     layer.on('mouseout',()=>layer.setStyle(areaStyle(feature)));
     layer.bindTooltip(()=>'<b>'+e(feature.properties.name)+'</b><br>'+e('Zona geográfica: '+areaZone(feature.properties))+'<br><small>Límite municipal INEGI</small>',{sticky:true});
   }}).addTo(map);
@@ -86,19 +87,63 @@
   function proposedStore(cc){return C.current(base,state).find(s=>s.cc===cc);}
   function isPositionChanged(s){const b=base.stores.find(b=>b.cc===s.cc);return b&&(b.latitude!==s.latitude||b.longitude!==s.longitude);}
 
+
+  function refreshMapSize(){
+    requestAnimationFrame(()=>{map.invalidateSize({pan:false,animate:false});renderLabels();});
+  }
+  function syncMenus(){
+    document.body.classList.toggle('menus-hidden',!menusVisible);
+    document.querySelector('.topbar').hidden=!menusVisible;
+    document.querySelector('.map-launchers').hidden=!menusVisible;
+    document.querySelector('.map-tools').hidden=!menusVisible;
+    document.querySelector('.map-context').hidden=!menusVisible;
+    $('legend').hidden=!menusVisible;
+    $('mapStatus').hidden=!menusVisible;
+    $('sidebar').hidden=!menusVisible||!$('sidebar').classList.contains('open');
+    $('mapControlsPanel').hidden=!menusVisible||!$('mapControlsPanel').classList.contains('open');
+    $('balancePanel').hidden=!menusVisible||!$('balancePanel').classList.contains('open');
+    $('inspector').hidden=!menusVisible||!inspectorMode;
+    $('selectionDock').hidden=!menusVisible;
+    $('menusToggleText').textContent=menusVisible?'Ocultar menús':'Mostrar menús';
+    $('menusToggle').setAttribute('aria-pressed',String(!menusVisible));
+    $('menusToggle').setAttribute('aria-label',menusVisible?'Ocultar menús y ampliar el mapa':'Mostrar menús del mapa');
+    $('mobileListBtn').setAttribute('aria-expanded',String(!$('sidebar').hidden));
+    $('controlsToggle').setAttribute('aria-expanded',String(!$('mapControlsPanel').hidden));
+    $('balanceToggle').setAttribute('aria-expanded',String(!$('balancePanel').hidden));
+  }
+  function setMenusVisible(visible){
+    menusVisible=visible;syncMenus();refreshMapSize();
+  }
+  function setSidebar(open,focusSearch=false){
+    if(open){menusVisible=true;setControlsPanel(false);setBalancePanel(false);}
+    else if($('sidebar').contains(document.activeElement))$('mobileListBtn').focus();
+    $('sidebar').classList.toggle('open',open);syncMenus();renderZoneNames();
+    if(open&&focusSearch)$('search').focus();
+  }
+  function setControlsPanel(open){
+    if(open){menusVisible=true;setSidebar(false);setBalancePanel(false);}
+    else if($('mapControlsPanel').contains(document.activeElement))$('controlsToggle').focus();
+    $('mapControlsPanel').classList.toggle('open',open);syncMenus();renderZoneNames();
+  }
+  function setBalancePanel(open){
+    if(open){menusVisible=true;setSidebar(false);setControlsPanel(false);}
+    else if($('balancePanel').contains(document.activeElement))$('balanceToggle').focus();
+    $('balancePanel').classList.toggle('open',open);syncMenus();renderZoneNames();
+  }
+
   function render(){
     cachedStores=C.current(base,state,view);visible=C.filtered(cachedStores,filter);
     renderFilters();renderList();renderPins();renderLegend();renderDock();renderBackground();renderStats();renderHealth();renderRegionalBalance();
     document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-pressed',String(b.dataset.view===view));});
     document.body.classList.toggle('regional-view',colorMode==='regional');
     $('dmToggleText').textContent=colorMode==='dm'?'Ocultar DM':'Mostrar DM';$('dmToggle').setAttribute('aria-pressed',String(colorMode==='dm'));
-    $('viewHelper').textContent=colorMode==='dm'?'Pines por DM · fondo por zonas':'Pines verdes · fondo por zonas';
+    $('viewHelper').textContent=!pinsVisible?'Tiendas ocultas · fondo geográfico':colorMode==='dm'?'Pines por DM · fondo por zonas':'Pines verdes · fondo por zonas';
     $('viewLabel').textContent=view==='base'?'VISTA BASE ACTUAL':'VISTA PROPUESTA';
     $('backgroundBtn').classList.toggle('active',inspectorMode==='background');$('backgroundBtn').setAttribute('aria-pressed',String(inspectorMode==='background'));
     $('undoBtn').disabled=!history.length;
     if(inspectorMode==='store'&&focus)renderStoreInspector();
     else if(inspectorMode==='background')renderBackgroundInspector();
-    renderNearby();
+    renderNearby();syncMenus();
   }
   function renderStats(){
     const b=C.balance(base,state),external=base.stores.length-b.base;
@@ -108,6 +153,7 @@
     const b=C.balance(base,view==='base'?C.freshState():state);
     const entries=[['kept',b.kept.length,'Se conservan','en Centro Norte'],['incoming','+'+b.incoming.length,'Tomar','de otras regiones'],['outgoing','−'+b.outgoing.length,b.excluded.length?'Ceder / excluir':'Ceder',b.excluded.length?'fuera de propuesta':'a otra región']];
     $('regionalBalance').innerHTML=entries.map(([key,count,label,hint])=>'<button class="balance-metric" data-action="balance-filter" data-group="'+key+'"><span>'+label+'</span><strong>'+count+'</strong><small>'+hint+'</small></button>').join('')+'<button class="balance-total" data-action="summary"><span>Tu región propuesta <i>↗</i></span><strong>'+b.total+'<small>ubicaciones</small></strong><div>'+b.current+' actuales + '+b.openings+' aperturas <b>'+(b.delta>0?'+':'')+b.delta+' vs. base</b></div></button>';
+    $('balanceCount').textContent=b.total;
     const all=C.current(base,state,view),counts={all:all.length,home:all.filter(s=>C.inRegion(s)).length,external:all.filter(x=>x.origin_region!==C.REGION).length,moves:all.filter(x=>x.region!==x.origin_region||x.decision==='No considerar').length};
     $('scopeTabs').innerHTML=[['all','Todas'],['home','Mi región'],['external','Opciones'],['moves','Cambios']].map(([key,label])=>'<button data-scope="'+key+'" aria-pressed="'+(filter.scope===key)+'" class="'+(filter.scope===key?'active':'')+'">'+label+'<b>'+counts[key]+'</b></button>').join('');
   }
@@ -159,7 +205,8 @@
     return L.divIcon({className:'map-pin',html:'<div class="'+cls+'" style="--pin:'+pinColor(s)+'"><div class="pin-head"><span>'+content+'</span></div></div>',iconSize:[28,34],iconAnchor:[14,31],tooltipAnchor:[0,-29]});
   }
   function renderPins(){
-    cluster.clearLayers();markers.clear();const ms=[];
+    $('pinsToggle').textContent=pinsVisible?'Ocultar tiendas del mapa':'Mostrar tiendas en el mapa';$('pinsToggle').setAttribute('aria-pressed',String(pinsVisible));
+    cluster.clearLayers();markers.clear();if(!pinsVisible)return;const ms=[];
     visible.forEach(s=>{
       const marker=L.marker([s.latitude,s.longitude],{icon:makeIcon(s),title:s.cc+' · '+s.store_name,alt:s.cc+' '+s.store_name,pinColor:pinColor(s),regionIncluded:C.inRegion(s),draggable:moving&&s.cc===focus,zIndexOffset:focus===s.cc?1200:0});
       marker.bindTooltip('<b>'+e(s.cc+' · '+s.store_name)+'</b><br>'+e(s.origin_region)+(s.region!==s.origin_region?' → '+e(s.region):'')+(colorMode==='dm'?'<br>'+e(C.dmLabel(s.dm)):'')+(s.status==='Apertura'?'<br>Apertura · sin fecha':''));
@@ -183,9 +230,11 @@
       pins='<div class="legend-title">TIENDAS · STARBUCKS <span>'+count+' en CN</span></div><div class="regional-key"><span><i class="key-dot solid"></i>En tu región interna</span><span><i class="key-dot hollow"></i>Opción de otra región</span><span><i class="key-dot plus">+</i>Propuesta para tomar</span><span><i class="key-dot arrow">↗</i>Propuesta para ceder</span></div><div class="pin-shape-note"><i class="diamond-tiny"></i>Rombo: apertura</div>';
     }else{
       const counts=new Map();visible.forEach(s=>counts.set(s.dm,(counts.get(s.dm)||0)+1));
-      pins='<div class="legend-title">PINES · DM STARBUCKS <span>'+visible.length+'</span></div><div class="legend-items">'+allDms().map(dm=>'<div class="legend-row"><i style="background:'+dmColor(dm)+'"></i><span>'+e(C.dmLabel(dm))+'</span><b>'+(counts.get(dm)||0)+'</b></div>').join('')+'</div>';
+      pins='<div class="legend-title">DM · STARBUCKS <span>'+visible.length+'</span></div><div class="legend-items">'+allDms().map(dm=>'<div class="legend-row"><i style="background:'+dmColor(dm)+'"></i><span>'+e(C.dmLabel(dm))+'</span><b>'+(counts.get(dm)||0)+'</b></div>').join('')+'</div>';
     }
-    $('legend').innerHTML=pins+'<section class="cartography-legend" aria-label="Colores del fondo geográfico"><div class="legend-title">FONDO · ZONAS GEOGRÁFICAS</div><p>Límites municipales INEGI</p><div class="cartography-swatches">'+C.zones.map(zone=>'<span><i style="background:'+C.zoneColors[zone]+'"></i>'+e(zone)+'</span>').join('')+'</div><button class="map-extent-link" data-action="fit-cartography">Ver territorio completo ↗</button><small>'+(showBackground?'Agrupación por orientación':'Colores de fondo ocultos')+'</small></section>';
+    $('pinLegend').innerHTML=pins;
+    $('legend').innerHTML='<div class="zone-legend-heading"><strong>ZONAS GEOGRÁFICAS</strong><small>Límites INEGI · orientación</small></div><div class="cartography-swatches">'+C.zones.map(zone=>'<span><i style="background:'+C.zoneColors[zone]+'"></i>'+e(zone)+'</span>').join('')+'</div>';
+    $('legend').classList.toggle('background-off',!showBackground);
   }
   function renderBackground(){areasLayer.setStyle(areaStyle);if(showNeighbors&&!map.hasLayer(neighborLayer))neighborLayer.addTo(map).bringToBack();if(!showNeighbors&&map.hasLayer(neighborLayer))map.removeLayer(neighborLayer);renderLabels();}
   function renderLabels(){
@@ -207,36 +256,39 @@
     // Elegir una referencia visible de cada zona, sin mover ni colorear los pines.
     const candidates=geo.municipalities.features.filter(f=>{
       const p=f.properties,latlng=[p.center[1],p.center[0]],screen=map.latLngToContainerPoint(latlng);
-      return bounds.contains(latlng)&&screen.y>260&&screen.y<size.y-90&&screen.x>60&&screen.x<size.x-70;
+      return bounds.contains(latlng)&&screen.y>(menusVisible?85:40)&&screen.y<size.y-(menusVisible?100:40)&&screen.x>60&&screen.x<size.x-60;
     });
     C.zones.forEach(zone=>{
       const group=candidates.filter(f=>areaZone(f.properties)===zone);if(!group.length)return;
       const x=group.reduce((n,f)=>n+f.properties.center[0],0)/group.length,y=group.reduce((n,f)=>n+f.properties.center[1],0)/group.length;
       const target=map.latLngToContainerPoint([y,x]),pinPoints=visible.map(store=>map.latLngToContainerPoint([store.latitude,store.longitude]));
-      const score=f=>{const point=map.latLngToContainerPoint([f.properties.center[1],f.properties.center[0]]),distance=Math.min(Infinity,...pinPoints.map(pin=>point.distanceTo(pin)));return point.distanceTo(target)+Math.max(0,58-distance)*5+(point.x<250&&point.y>size.y-410?500:0);};
+      const score=f=>{const point=map.latLngToContainerPoint([f.properties.center[1],f.properties.center[0]]),distance=Math.min(Infinity,...pinPoints.map(pin=>point.distanceTo(pin)));return point.distanceTo(target)+Math.max(0,58-distance)*5+(menusVisible&&$('sidebar').classList.contains('open')&&point.x<385?500:0)+(menusVisible&&inspectorMode&&point.x>size.x-385?500:0)+(menusVisible&&$('balancePanel').classList.contains('open')&&point.y<220&&point.x<690?500:0);};
       const nearest=group.reduce((a,b)=>score(b)<score(a)?b:a);
       const p=nearest.properties;
-      L.marker([p.center[1],p.center[0]],{pane:'labels',interactive:false,icon:L.divIcon({className:'geographic-zone-label',html:'<span style="--zone:'+C.zoneColors[zone]+'">'+e(zone)+'</span>',iconSize:[102,25],iconAnchor:[51,12]})}).addTo(zoneNameLayer);
+      L.marker([p.center[1],p.center[0]],{pane:'labels',interactive:false,icon:L.divIcon({className:'geographic-zone-label',html:'<span style="--zone:'+C.zoneColors[zone]+'">'+e(zone)+'</span>',iconSize:[140,34],iconAnchor:[70,17]})}).addTo(zoneNameLayer);
     });
   }
   map.on('moveend',()=>{if(showLabels||showZoneLabels)renderLabels();});
   function fitCartography(){
-    map.fitBounds(areasLayer.getBounds(),{paddingTopLeft:[55,275],paddingBottomRight:[inspectorMode?350:45,105],maxZoom:10,animate:false});
+    const size=map.getSize(),left=menusVisible&&$('sidebar').classList.contains('open')?Math.min(380,size.x*.4):35,right=menusVisible&&inspectorMode?Math.min(380,size.x*.4):35;
+    map.fitBounds(areasLayer.getBounds(),{paddingTopLeft:[left,menusVisible?85:35],paddingBottomRight:[right,menusVisible?100:35],maxZoom:12,animate:false});
   }
   function fitVisible(){
     if(!visible.length){toast('No hay ubicaciones visibles con estos filtros.');return;}
-    const right=inspectorMode?330:50;
-    map.fitBounds(L.latLngBounds(visible.map(s=>[s.latitude,s.longitude])),{paddingTopLeft:[65,185],paddingBottomRight:[Math.min(right,map.getSize().x*.35),110],maxZoom:14,animate:false});
+    const size=map.getSize(),left=menusVisible&&$('sidebar').classList.contains('open')?Math.min(380,size.x*.4):35,right=menusVisible&&inspectorMode?Math.min(380,size.x*.4):35;
+    map.fitBounds(L.latLngBounds(visible.map(s=>[s.latitude,s.longitude])),{paddingTopLeft:[left,menusVisible?85:35],paddingBottomRight:[right,menusVisible?100:35],maxZoom:14,animate:false});
   }
   function setInspector(mode){
-    inspectorMode=mode;$('inspector').classList.toggle('hidden',!mode);document.querySelector('.map-workspace').classList.toggle('has-inspector',!!mode);
+    inspectorMode=mode;
+    if(mode){setMenusVisible(true);setControlsPanel(false);setBalancePanel(false);}
+    $('inspector').classList.toggle('hidden',!mode);document.querySelector('.map-workspace').classList.toggle('has-inspector',!!mode);
     if(mode)$('mapSteps').classList.add('hidden');
-    $('backgroundBtn').classList.toggle('active',mode==='background');renderDock();
+    $('backgroundBtn').classList.toggle('active',mode==='background');renderDock();syncMenus();renderBackground();
   }
   function focusStore(cc,pan=true){
     const store=getStore(cc);if(!store)return;
-    moving=false;focus=cc;setInspector('store');renderList();renderPins();renderStoreInspector();renderNearby();
-    $('sidebar').classList.remove('open');
+    moving=false;pinsVisible=true;focus=cc;setSidebar(false);setInspector('store');renderList();renderPins();renderStoreInspector();renderNearby();
+    setSidebar(false);
     if(pan){
       const zoom=Math.max(map.getZoom(),14);
       const point=map.project([store.latitude,store.longitude],zoom),offset=map.getSize().x>600?155:105;
@@ -278,7 +330,7 @@
   function renderBackgroundInspector(){
     const feature=geoById.get(areaFocus),p=feature&&feature.properties;
     const selectedArea=p?'<h3>'+e(p.name)+'</h3><p class="location-meta">'+e(STATE_NAMES[p.state])+' · INEGI '+p.id+'</p><label>Zona geográfica del municipio<select id="areaZone">'+options(C.zones,areaZone(p))+'</select></label><button class="primary" data-action="save-area">Pintar solo este fondo</button><div class="selected-zone-info">Orientación inicial: <b>'+e(geoZone(p))+'</b><br>Zona del fondo: <b>'+e(areaZone(p))+'</b></div><button class="quiet" data-action="reset-area" style="margin-top:10px;width:100%">Restablecer este municipio</button>':'<div class="area-instruction"><b>Selecciona un municipio en el mapa.</b><br>Puedes ajustar su zona geográfica y el color de su fondo.</div>';
-    $('inspector').innerHTML='<div class="inspector-header"><span class="eyebrow">CAPA CARTOGRÁFICA</span><button data-action="close-inspector" aria-label="Cerrar fondo geográfico">×</button></div><div class="inspector-body"><h2>Las zonas del territorio.</h2><p class="location-meta">Límites municipales de INEGI · '+geo.municipalities.features.length+' municipios y alcaldías.</p><div class="cartography-explanation">Los colores muestran orientación geográfica. Las regiones internas de Starbucks se asignan en la ficha de cada tienda.</div><label class="switch-row"><input id="showBackground" type="checkbox"'+(showBackground?' checked':'')+'>Pintar zonas del fondo</label><label>Intensidad del fondo<div class="opacity-row"><input type="range" id="backgroundOpacity" min="5" max="55" value="'+Math.round(opacity*100)+'"><span id="opacityValue">'+Math.round(opacity*100)+'%</span></div></label><label class="switch-row"><input id="showZoneLabels" type="checkbox"'+(showZoneLabels?' checked':'')+'>Nombres de zonas geográficas</label><label class="switch-row"><input id="showLabels" type="checkbox"'+(showLabels?' checked':'')+'>Nombres de municipios</label><label class="switch-row"><input id="showNeighbors" type="checkbox"'+(showNeighbors?' checked':'')+'>Entidades vecinas</label><button class="quiet cartography-extent" data-action="fit-cartography">Ver las cinco zonas en el mapa ↗</button><div class="zone-key">'+C.zones.map(zone=>'<span><i style="background:'+C.zoneColors[zone]+'"></i>'+e(zone)+'</span>').join('')+'</div>'+selectedArea+'<div class="note">INEGI aporta los límites municipales. Las cinco zonas son una agrupación de referencia por orientación, ajustable por municipio; no son una regionalización oficial de INEGI.</div></div>';
+    $('inspector').innerHTML='<div class="inspector-header"><span class="eyebrow">CAPA CARTOGRÁFICA</span><button data-action="close-inspector" aria-label="Cerrar fondo geográfico">×</button></div><div class="inspector-body"><h2>Las zonas del territorio.</h2><p class="location-meta">Límites municipales de INEGI · '+geo.municipalities.features.length+' municipios y alcaldías.</p><div class="cartography-explanation">Los colores muestran orientación geográfica. Las regiones internas de Starbucks se asignan en la ficha de cada tienda.</div><label class="switch-row"><input id="showBackground" type="checkbox"'+(showBackground?' checked':'')+'>Pintar zonas del fondo</label><label>Intensidad del fondo<div class="opacity-row"><input type="range" id="backgroundOpacity" min="5" max="75" value="'+Math.round(opacity*100)+'"><span id="opacityValue">'+Math.round(opacity*100)+'%</span></div></label><label class="switch-row"><input id="showZoneLabels" type="checkbox"'+(showZoneLabels?' checked':'')+'>Nombres de zonas geográficas</label><label class="switch-row"><input id="showLabels" type="checkbox"'+(showLabels?' checked':'')+'>Nombres de municipios</label><label class="switch-row"><input id="showNeighbors" type="checkbox"'+(showNeighbors?' checked':'')+'>Entidades vecinas</label><button class="quiet cartography-extent" data-action="fit-cartography">Ver las cinco zonas en el mapa ↗</button><div class="zone-key">'+C.zones.map(zone=>'<span><i style="background:'+C.zoneColors[zone]+'"></i>'+e(zone)+'</span>').join('')+'</div>'+selectedArea+'<div class="note">INEGI aporta los límites municipales. Las cinco zonas son una agrupación de referencia por orientación, ajustable por municipio; no son una regionalización oficial de INEGI.</div></div>';
     $('showBackground').addEventListener('change',ev=>{showBackground=ev.target.checked;renderBackground();renderLegend();});
     $('showZoneLabels').addEventListener('change',ev=>{showZoneLabels=ev.target.checked;renderLabels();});
     $('showLabels').addEventListener('change',ev=>{showLabels=ev.target.checked;renderLabels();});
@@ -299,7 +351,7 @@
   }
   function startArea(){
     if(areaMode){stopArea();return;}
-    areaMode=true;areaStart=null;$('areaBtn').classList.add('active');document.body.classList.add('crosshair');toast('Marca dos esquinas en el mapa para seleccionar tiendas. Esc cancela.');
+    pinsVisible=true;renderPins();areaMode=true;areaStart=null;$('areaBtn').classList.add('active');document.body.classList.add('crosshair');toast('Marca dos esquinas en el mapa para seleccionar tiendas. Esc cancela.');
     $('mapStatus').lastElementChild.textContent='Selección de área · marca la primera esquina';
   }
   function stopArea(){areaMode=false;areaStart=null;if(areaRectangle){map.removeLayer(areaRectangle);areaRectangle=null;}$('areaBtn').classList.remove('active');document.body.classList.remove('crosshair');}
@@ -315,7 +367,7 @@
   function guide(){
     const b=C.balance(base,state);
     modal('Tu región, en tres pasos.','Parte de '+b.baseCurrent+' tiendas actuales + '+b.baseOpenings+' aperturas y construye la siguiente estructura.',
-      '<div class="guide-grid guide-three"><div class="guide-card"><span>01</span><h3>Elige las tiendas</h3><p>Selecciona un pin o busca el CeCo. «Mi región» muestra Centro Norte; «Opciones» muestra tiendas de otras regiones. Usa casillas o selección por área para agrupar.</p></div><div class="guide-card"><span>02</span><h3>Conserva, toma o cede</h3><p>En Región propuesta elige Centro Norte para tomar una tienda externa o mantener una propia. Elige otra región para ceder. Guarda la propuesta.</p></div><div class="guide-card"><span>03</span><h3>Mira el resultado</h3><p>El balance se actualiza al instante. «Ocultar DM» deja los pines en verde; el fondo mantiene sus cinco colores geográficos. Compara Base actual con Mi propuesta y exporta el detalle para Excel.</p></div></div><div class="note">Los cambios forman una propuesta y se guardan en este navegador. La base publicada permanece como referencia. Deshacer recupera el último cambio.</div>',
+      '<div class="guide-grid guide-three"><div class="guide-card"><span>01</span><h3>Elige las tiendas</h3><p>Selecciona un pin o busca el CeCo. «Mi región» muestra Centro Norte; «Opciones» muestra tiendas de otras regiones. Usa casillas o selección por área para agrupar.</p></div><div class="guide-card"><span>02</span><h3>Conserva, toma o cede</h3><p>En Región propuesta elige Centro Norte para tomar una tienda externa o mantener una propia. Elige otra región para ceder. Guarda la propuesta.</p></div><div class="guide-card"><span>03</span><h3>Mira el resultado</h3><p>El balance se actualiza al instante. «Ocultar DM» deja los pines en verde; el fondo mantiene sus cinco colores geográficos. Compara Base actual con Mi propuesta y exporta el detalle para Excel.</p></div></div><div class="note">Abre Tiendas, Capas o Balance cuando lo necesites. Ocultar menús deja el mapa libre y Mostrar menús recupera tu trabajo. Los cambios forman una propuesta y se guardan en este navegador. La base publicada permanece como referencia. Deshacer recupera el último cambio.</div>',
       '<button class="primary" data-action="close-modal">Ir al mapa</button>');
   }
   function showBulk(){
@@ -390,6 +442,8 @@
         case 'balance-filter':clearFilters();if(action.dataset.group==='kept'){filter.origin=C.REGION;filter.scope='home';}else {if(action.dataset.group==='incoming')filter.decision='Tomar';else filter.scope='outgoing';}render();fitVisible();break;
         case 'focus-region':$('modal').close();view='proposal';clearFilters();filter.scope='all';filter.origin='';filter.region=action.dataset.region;render();fitVisible();break;
         case 'fit-cartography':fitCartography();break;
+        case 'close-controls':setControlsPanel(false);break;
+        case 'close-balance':setBalancePanel(false);break;
         case 'guide':guide();break;
         case 'summary':summary();break;
         case 'focus-dm':$('modal').close();clearFilters();filter.dm=action.dataset.dm;render();fitVisible();break;
@@ -434,14 +488,20 @@
   $('fitBtn').addEventListener('click',fitVisible);$('undoBtn').addEventListener('click',undo);$('areaBtn').addEventListener('click',startArea);
   $('guideBtn').addEventListener('click',guide);$('summaryBtn').addEventListener('click',summary);$('teamBtn').addEventListener('click',team);
   $('exportBtn').addEventListener('click',showExport);$('reviewBtn').addEventListener('click',reviewData);$('qualityCard').addEventListener('click',reviewData);$('sourcesBtn').addEventListener('click',sources);
-  $('mobileListBtn').addEventListener('click',()=>$('sidebar').classList.toggle('open'));
-  $('closeListBtn').addEventListener('click',()=>$('sidebar').classList.remove('open'));
+  $('mobileListBtn').addEventListener('click',()=>setSidebar(!$('sidebar').classList.contains('open')));
+  $('closeListBtn').addEventListener('click',()=>setSidebar(false));
+  $('menusToggle').addEventListener('click',()=>setMenusVisible(!menusVisible));
+  $('controlsToggle').addEventListener('click',()=>setControlsPanel(!$('mapControlsPanel').classList.contains('open')));
+  $('balanceToggle').addEventListener('click',()=>setBalancePanel(!$('balancePanel').classList.contains('open')));
+  $('territoryBtn').addEventListener('click',fitCartography);
+  $('pinsToggle').addEventListener('click',()=>{pinsVisible=!pinsVisible;render();});
+  document.querySelector('.skip-link').addEventListener('click',()=>setSidebar(true,true));
   $('dismissSteps').addEventListener('click',()=>$('mapSteps').classList.add('hidden'));
   document.addEventListener('keydown',event=>{
     const typing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-    if(event.key==='Escape'){stopArea();if(!$('modal').open){closeInspector();$('sidebar').classList.remove('open');}}
-    if(!typing&&event.key==='/'&&!$('modal').open){event.preventDefault();$('sidebar').classList.add('open');$('search').focus();}
+    if(event.key==='Escape'){stopArea();if(!$('modal').open){setMenusVisible(true);if(inspectorMode)closeInspector();setSidebar(false);setControlsPanel(false);setBalancePanel(false);}}
+    if(!typing&&event.key==='/'&&!$('modal').open){event.preventDefault();setSidebar(true,true);}
     if(!typing&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();undo();}
   });
-  render();fitVisible();if(scenarioNotice){persist();toast(scenarioNotice);}
+  syncMenus();render();fitCartography();if(scenarioNotice){persist();toast(scenarioNotice);}
 })();
