@@ -1,5 +1,7 @@
 import copy
+from contextlib import redirect_stderr
 import importlib.util
+import io
 import json
 from pathlib import Path
 import shutil
@@ -65,15 +67,58 @@ class QualityTests(unittest.TestCase):
         base,health=q.prepare(ROOT);stored=q.read_js(ROOT/'static/planning/base.js','MAPA_BASE')
         self.assertEqual(health['counts']['total'],len(base['stores']))
         self.assertEqual(base['metadata']['signature'],stored['metadata']['signature'])
-        self.assertTrue(all(s['region']=='Centro Norte' for s in stored['stores']))
+        self.assertTrue(all(s['region'] in q.regional_rules()['regions'] for s in stored['stores']))
+
+    def test_region_origins_and_national_options(self):
+        base,health=q.prepare(ROOT)
+        self.assertEqual(health['counts']['regional_current'],73)
+        self.assertEqual(health['counts']['regional_openings'],3)
+        self.assertEqual(health['counts']['external'],27)
+        self.assertEqual(sum(s['region']=='Bajío' for s in base['stores']),14)
+        self.assertEqual(sum(s['region']=='Centro Sur' for s in base['stores']),13)
+
+    def test_explicit_future_region_wins_over_dm_inference(self):
+        a=self.row();a[1]['DM']='David Carrasco'
+        b=self.row('70002');b[1]['DM']='Mónica Morales'
+        c=self.row('70003');c[1]['DM']='DM nuevo';c[1]['Región']='Centro Poniente'
+        stores,_,_=q.normalize_rows([a,b,c],self.geo)
+        self.assertEqual([s['region'] for s in stores],['Bajío','Centro Sur','Centro Poniente'])
+        c[1]['Región']='Desconocida'
+        with self.assertRaisesRegex(q.ValidationError,'Región inválida'):q.normalize_rows([c],self.geo)
+
+    def test_confirmed_toreo_keeps_original_coordinate_and_has_no_warning(self):
+        stores,warnings,_=q.normalize_rows(self.rows,self.geo,self.date1904)
+        s=next(s for s in stores if s['cc']=='43302')
+        self.assertEqual(s['latitude'],19.4506098125196)
+        self.assertEqual(s['longitude'],-99.2180774805589)
+        self.assertTrue(s['location_verification'])
+        self.assertFalse(any(w['cc']==s['cc'] for w in warnings))
+
+    def test_location_confirmation_does_not_hide_a_future_coordinate_change(self):
+        rows=copy.deepcopy(self.rows)
+        for _,row in rows:
+            if row.get('CC')=='43302':row['Latitud']='19.4326';row['Longitud']='-99.1332'
+        stores,warnings,_=q.normalize_rows(rows,self.geo,self.date1904)
+        s=next(s for s in stores if s['cc']=='43302')
+        self.assertNotIn('location_verification',s)
+        self.assertTrue(any(w['cc']==s['cc'] for w in warnings))
+
+    def test_check_rejects_incorrect_green_regional_totals(self):
+        with tempfile.TemporaryDirectory() as d:
+            r=Path(d)/'project'
+            shutil.copytree(ROOT,r,ignore=shutil.ignore_patterns('.git','preview','.openai','__pycache__'))
+            health=q.read_js(r/'static/planning/insights.js','MAPA_INSIGHTS')
+            health['counts']['regional_current']=999
+            q.atomic_write(r/'static/planning/insights.js','window.MAPA_INSIGHTS = '+json.dumps(health)+';\n')
+            with redirect_stderr(io.StringIO()):self.assertEqual(q.main(['--root',str(r),'--check']),2)
 
     def test_failed_update_preserves_base_and_marks_health_blocked(self):
         with tempfile.TemporaryDirectory() as d:
             r=Path(d);(r/'static/planning').mkdir(parents=True);(r/'cms').mkdir()
-            for name in ('base.js','geography.js','insights.js'):shutil.copy2(ROOT/'static/planning'/name,r/'static/planning'/name)
+            for name in ('base.js','geography.js','insights.js','regional-rules.json'):shutil.copy2(ROOT/'static/planning'/name,r/'static/planning'/name)
             (r/'cms/Mapa_CentroNorte_CMS.xlsx').write_bytes(b'Excel no valido')
             previous=(r/'static/planning/base.js').read_bytes()
-            self.assertEqual(q.main(['--root',str(r),'--no-open']),2)
+            with redirect_stderr(io.StringIO()):self.assertEqual(q.main(['--root',str(r),'--no-open']),2)
             self.assertEqual((r/'static/planning/base.js').read_bytes(),previous)
             self.assertEqual(q.read_js(r/'static/planning/insights.js','MAPA_INSIGHTS')['status'],'blocked')
 

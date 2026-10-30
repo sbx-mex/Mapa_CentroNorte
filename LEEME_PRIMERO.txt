@@ -1,28 +1,28 @@
-MEJORA CENTRO NORTE 3.1 · PAQUETE INCREMENTAL
+CENTRO NORTE · MEJORA REGIONAL 4.0
 
-Este ZIP contiene SOLO archivos nuevos o modificados.
-Aplícalo sobre el proyecto 3.0 que ya subiste a GitHub.
+APLICAR
+1. Extrae el ZIP.
+2. Copia su CONTENIDO en la raíz del proyecto Mapa_CentroNorte existente.
+3. Conserva las carpetas y reemplaza los archivos coincidentes.
+4. Sube el contenido a GitHub, incluyendo .github/workflows/ci.yml.
+5. Espera la validación y publicación de Pages. Comprueba Base validada.
 
-1. Copia el contenido en la RAÍZ del proyecto, respetando sus carpetas.
-2. Reemplaza los archivos que coincidan. Conserva el Excel, geography.js y static/vendor existentes.
-3. Abre index.html: la vista ya viene preparada.
-4. Sube los archivos del paquete al repositorio con sus rutas.
+El ZIP es incremental: conserva cms/, las librerías y la cartografía existentes.
+No subas únicamente el ZIP ni lo publiques dentro de otra subcarpeta.
 
-TODAS las tiendas son Región Centro Norte.
-El botón Cargar y la carga manual de archivos se eliminaron.
-Las zonas del fondo son referencias geográficas y no cambian la región.
+BASE CORRECTA
+Centro Norte: 73 tiendas actuales + 3 aperturas = 76 ubicaciones.
+Opciones: David Carrasco, Bajío (14); Mónica Morales, Centro Sur (13).
+Toreo Walmart (43302): ubicación confirmada; conserva su coordenada original.
 
-Navegación:
-  Datos listos: revisar calidad de la información.
-  Listado o pin: elegir y evaluar una tienda.
-  Ver reparto: comparar visualmente Base y Propuesta por DM.
-  Guardar propuesta: descargar decisiones y respaldo.
+USAR
+Selecciona una tienda. Elige Región propuesta. Guarda.
+Para tomar una externa: elige Centro Norte.
+Para ceder una propia: elige otra región.
+Mostrar DM / Ocultar DM activa o apaga los colores por responsable.
+Las casillas y el botón de área permiten proponer varias tiendas juntas.
+Revisar propuesta muestra el balance completo; Exportar descarga el detalle.
 
-Para futuras actualizaciones del Excel:
-  python ACTUALIZAR_MAPA.py
-
-Python valida la base y prepara la vista antes de publicar.
-El indicador verde se muestra solo si la revisión coincide con los datos.
-La confirmación de una nueva carga en GitHub requiere que finalice su ejecución de Actions.
-
-Consulta README.md y AUDITORIA_3_1.md para el análisis y la verificación.
+La entrega incluye 45 pruebas automatizadas y revisión de la navegación.
+El resultado de GitHub Actions se confirma después de subir la mejora.
+Ver README.md para las instrucciones completas.

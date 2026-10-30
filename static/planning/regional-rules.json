@@ -1,0 +1,19 @@
+{
+  "version": "4.0.0",
+  "home_region": "Centro Norte",
+  "regions": ["Centro Sur", "Centro Norte", "Bajío", "Centro Centro", "Centro Poniente"],
+  "dm_origins": {
+    "david carrasco": "Bajío",
+    "david carraso": "Bajío",
+    "moni morales": "Centro Sur",
+    "monica morales": "Centro Sur"
+  },
+  "dm_labels": {"moni morales": "Mónica Morales", "monica morales": "Mónica Morales"},
+  "confirmed_locations": {
+    "43302": {
+      "latitude": 19.4506098125196,
+      "longitude": -99.2180774805589,
+      "note": "Ubicación de Toreo Walmart confirmada por el Regional; conservar las coordenadas de origen."
+    }
+  }
+}

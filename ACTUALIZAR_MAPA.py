@@ -23,7 +23,7 @@ import zipfile
 REGION = 'Centro Norte'
 ZONES = ('Norte', 'Poniente', 'Centro', 'Oriente', 'Sur')
 NS = {'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-FIELDS = {'CC':'cc','Nombre Tienda':'store_name','DM':'dm','Fecha Apertura':'opening_date','Municipio':'municipality','Cobertura':'coverage','Formato':'format','Formato Comercial':'commercial_format','Tier':'tier','Latitud':'latitude','Longitud':'longitude','Activa':'active'}
+FIELDS = {'CC':'cc','Nombre Tienda':'store_name','DM':'dm','Región':'region','Fecha Apertura':'opening_date','Municipio':'municipality','Cobertura':'coverage','Formato':'format','Formato Comercial':'commercial_format','Tier':'tier','Latitud':'latitude','Longitud':'longitude','Activa':'active'}
 REQUIRED = ('CC','Nombre Tienda','DM','Fecha Apertura','Municipio','Cobertura','Latitud','Longitud')
 
 
@@ -36,6 +36,24 @@ class ValidationError(ValueError):
 def clean(v): return str(v if v is not None else '').strip()
 def norm(v): return ''.join(c for c in unicodedata.normalize('NFD',clean(v).lower()) if not unicodedata.combining(c))
 def digest(value): return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:20]
+
+
+def regional_rules(root=None):
+    root=root or Path(__file__).resolve().parent
+    rules=json.loads((root/'static/planning/regional-rules.json').read_text(encoding='utf-8'))
+    if rules.get('home_region')!=REGION or len(rules.get('regions',[]))!=5 or len(set(rules['regions']))!=5:
+        raise ValidationError('Configuración regional inválida.')
+    if any(v not in rules['regions'] for v in rules.get('dm_origins',{}).values()):
+        raise ValidationError('Hay DM con región desconocida.')
+    return rules
+
+
+def origin_region(dm,provided,rules):
+    if clean(provided):
+        match=next((r for r in rules['regions'] if norm(r)==norm(provided)),None)
+        if not match:raise ValidationError('Región inválida: '+clean(provided))
+        return match
+    return rules['dm_origins'].get(norm(dm),REGION)
 
 
 def excel_date(value, date1904=False):
@@ -119,7 +137,8 @@ def distance(a,b):
     return 6371.0088*2*math.atan2(math.sqrt(h),math.sqrt(max(0,1-h)))
 
 
-def normalize_rows(rows,geo,date1904=False):
+def normalize_rows(rows,geo,date1904=False,rules=None):
+    rules=rules or regional_rules()
     stores=[];errors=[];warnings=[];seen=set();corrections=[]
     states={'09':'Ciudad de México','15':'Estado de México','13':'Hidalgo'}
     for line,row in rows:
@@ -141,10 +160,13 @@ def normalize_rows(rows,geo,date1904=False):
             s['opening_date']=excel_date(s['opening_date'],date1904);s['status']='Actual' if s['opening_date'] else 'Apertura'
             s['active']=norm(s['active']) not in ('no','false','0','inactiva')
             a=find_area(s['latitude'],s['longitude'],geo)
-            s.update(region=REGION,zone=(a.get('zone') or a.get('region')) if a else fallback_zone(s['latitude'],s['longitude']),municipality_id=a['id'] if a else None,geo_municipality=a['name'] if a else None)
+            s.update(region=origin_region(s['dm'],s['region'],rules),zone=(a.get('zone') or a.get('region')) if a else fallback_zone(s['latitude'],s['longitude']),municipality_id=a['id'] if a else None,geo_municipality=a['name'] if a else None)
+            confirmation=rules.get('confirmed_locations',{}).get(cc,{})
+            confirmed=confirmation.get('latitude')==s['latitude'] and confirmation.get('longitude')==s['longitude']
+            if confirmed:s['location_verification']=confirmation['note']
             if s['zone'] not in ZONES:s['zone']=fallback_zone(s['latitude'],s['longitude'])
             if not a:warnings.append({'cc':cc,'kind':'outside','title':'Fuera del fondo disponible','detail':'Revisar coordenadas o ampliar el fondo. El pin se conserva.'})
-            elif norm(s['coverage'])!=norm(states.get(a['state'],s['coverage'])):
+            elif not confirmed and norm(s['coverage'])!=norm(states.get(a['state'],s['coverage'])):
                 warnings.append({'cc':cc,'kind':'state_mismatch','title':'Validar ubicación','detail':s['municipality']+' · '+s['coverage']+' en Excel; coordenada en '+a['name']+' · '+states.get(a['state'],a['state'])+'.'})
             if not s['active']:warnings.append({'cc':cc,'kind':'inactive','title':'Estatus de origen inactivo','detail':'La ubicación se conserva para revisión; confirma su consideración en la propuesta.'})
             stores.append(s)
@@ -163,9 +185,10 @@ def read_js(path,variable):
 
 def prepare(root):
     folder=root/'static/planning';geo=read_js(folder/'geography.js','MAPA_GEO')
-    rows,date1904=read_locations(root/'cms/Mapa_CentroNorte_CMS.xlsx');stores,warnings,corrections=normalize_rows(rows,geo,date1904)
+    rules=regional_rules(root)
+    rows,date1904=read_locations(root/'cms/Mapa_CentroNorte_CMS.xlsx');stores,warnings,corrections=normalize_rows(rows,geo,date1904,rules)
     signature=digest(stores);stamp=datetime.now(timezone.utc).isoformat(timespec='seconds')
-    metadata={'version':'3.1.0','signature':signature,'region':REGION,'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'validated_at':stamp,'source_repo':'sbx-mex/Mapa_CentroNorte','geography_signature':digest(geo),'source_workbook_sha256':hashlib.sha256((root/'cms/Mapa_CentroNorte_CMS.xlsx').read_bytes()).hexdigest()}
+    metadata={'version':'4.0.0','signature':signature,'region':REGION,'regional_rules':rules,'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'validated_at':stamp,'source_repo':'sbx-mex/Mapa_CentroNorte','geography_signature':digest(geo),'source_workbook_sha256':hashlib.sha256((root/'cms/Mapa_CentroNorte_CMS.xlsx').read_bytes()).hexdigest()}
     base={'metadata':metadata,'stores':stores};by_cc={s['cc']:s for s in stores}
     nearest={s['cc']:[{'cc':other['cc'],'km':round(distance(s,other),6)} for other in sorted((x for x in stores if x['cc']!=s['cc']),key=lambda other:distance(s,other))[:3]] for s in stores}
     dms=[]
@@ -173,7 +196,9 @@ def prepare(root):
         team=[s for s in stores if s['dm']==dm]
         span=max((distance(a,b) for i,a in enumerate(team) for b in team[i+1:]),default=0)
         dms.append({'dm':dm,'count':len(team),'openings':sum(s['status']=='Apertura' for s in team),'span_km':round(span,2)})
-    insights={'status':'valid','signature':signature,'validated_at':stamp,'region':REGION,'counts':{'total':len(stores),'current':sum(s['status']=='Actual' for s in stores),'openings':sum(s['status']=='Apertura' for s in stores),'dms':len(dms),'review':len({w['cc'] for w in warnings})},'warnings':warnings,'corrections':corrections,'dms':dms,'nearest':nearest,'checks':{'unique_ceco':True,'coordinates':True,'dates':True,'single_region':True,'geography':True},'method':'Distancia Haversine en línea recta; las zonas del fondo son referencias geográficas.'}
+    regional=[{'region':r,'total':sum(s['region']==r for s in stores),'current':sum(s['region']==r and s['status']=='Actual' for s in stores),'openings':sum(s['region']==r and s['status']=='Apertura' for s in stores)} for r in rules['regions']]
+    home=next(r for r in regional if r['region']==REGION)
+    insights={'status':'valid','signature':signature,'validated_at':stamp,'region':REGION,'counts':{'total':len(stores),'current':sum(s['status']=='Actual' for s in stores),'openings':sum(s['status']=='Apertura' for s in stores),'regional_total':home['total'],'regional_current':home['current'],'regional_openings':home['openings'],'external':len(stores)-home['total'],'dms':len(dms),'review':len({w['cc'] for w in warnings})},'regions':regional,'confirmed_locations':{s['cc']:s['location_verification'] for s in stores if s.get('location_verification')},'warnings':warnings,'corrections':corrections,'dms':dms,'nearest':nearest,'checks':{'unique_ceco':True,'coordinates':True,'dates':True,'regions_valid':True,'geography':True},'method':'Distancia Haversine en línea recta; las zonas del fondo son referencias geográficas.'}
     # Verificar enlaces locales y contratos de navegación antes de marcar verde.
     html=(root/'index.html').read_text(encoding='utf-8')
     for href in re.findall(r'(?:src|href)="([^"]+)"',html):
@@ -205,7 +230,10 @@ def main(argv=None):
             stored=read_js(folder/'base.js','MAPA_BASE');health=read_js(folder/'insights.js','MAPA_INSIGHTS')
             if stored['metadata'].get('signature')!=base['metadata']['signature'] or stored['metadata'].get('geography_signature')!=base['metadata']['geography_signature'] or health.get('signature')!=base['metadata']['signature'] or health.get('status')!='valid':
                 raise ValidationError('La vista no coincide con el Excel. Ejecuta ACTUALIZAR_MAPA.py y sube base.js e insights.js.')
-            if any(s.get('region')!=REGION for s in stored['stores']):raise ValidationError('Todas las tiendas deben ser Región Centro Norte.')
+            if any(s.get('region') not in base['metadata']['regional_rules']['regions'] for s in stored['stores']):raise ValidationError('Hay tiendas con región desconocida.')
+            if stored['metadata'].get('regional_rules')!=base['metadata']['regional_rules']:raise ValidationError('Actualiza la vista para aplicar las reglas regionales vigentes.')
+            for key in ('counts','regions','warnings','corrections','confirmed_locations','dms','nearest','checks'):
+                if health.get(key)!=insights.get(key):raise ValidationError('La revisión no coincide con los datos: '+key+'. Ejecuta ACTUALIZAR_MAPA.py.')
             if digest(stored['stores'])!=base['metadata']['signature']:raise ValidationError('La instantánea contiene datos alterados o desactualizados.')
             html=(root/'index.html').read_text(encoding='utf-8')
             for filename in ('base.js','insights.js'):
@@ -218,7 +246,7 @@ def main(argv=None):
             for filename in ('base.js','insights.js'):
                 html=re.sub(r'static/planning/'+re.escape(filename)+r'(?:\?v=[^"\s]+)?','static/planning/'+filename+'?v='+base['metadata']['signature'],html)
             atomic_write(root/'index.html',html)
-        c=insights['counts'];print(f"VALIDADO: {c['total']} tiendas | {c['dms']} DM | {c['openings']} aperturas | {c['review']} por revisar | Region {REGION}")
+        c=insights['counts'];print(f"VALIDADO: {REGION} {c['regional_current']} actuales + {c['regional_openings']} aperturas | {c['external']} externas | {c['total']} ubicaciones | {c['review']} por revisar")
         if not args.check and not args.no_open:webbrowser.open((root/'index.html').as_uri())
         return 0
     except (ValidationError,OSError,ValueError,KeyError,zipfile.BadZipFile,ET.ParseError) as exc:
