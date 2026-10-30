@@ -1,4 +1,4 @@
-name: Validación Centro Norte CMS
+name: Validación de propuesta regional
 
 on:
   push:
@@ -21,11 +21,13 @@ jobs:
           node-version: "22"
       - run: pip install -r requirements.txt
       - run: python -m compileall -q .
-      - name: Validar Excel, región y vista con Python
+      - name: Validar Excel, regiones y balance de Centro Norte
         run: python ACTUALIZAR_MAPA.py --check
       - name: Comprobar scripts de navegación
         run: |
           node --check static/planning/app.js
           node --check static/planning/core.js
-      - run: PYTHONPATH=. python -m unittest discover -s tests -v
-      - run: node --test tests/planning.test.cjs
+      - name: Pruebas Python y consistencia regional
+        run: PYTHONPATH=. python -m unittest discover -s tests -v
+      - name: Propuestas, tomar, ceder, aperturas y exportación
+        run: node --test tests/planning.test.cjs
