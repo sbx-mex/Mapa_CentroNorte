@@ -1,4 +1,4 @@
-"""Valida el CMS y prepara la vista Centro Norte con Python, sin paquetes extra.
+"""Valida el CMS y prepara la vista Centro Norte con Python, y sincroniza mapa y directorio.
 
 python ACTUALIZAR_MAPA.py --no-open       actualiza la vista
 python ACTUALIZAR_MAPA.py --check         comprueba datos y vista; no escribe
@@ -23,7 +23,7 @@ import zipfile
 REGION = 'Centro Norte'
 ZONES = ('Norte', 'Poniente', 'Centro', 'Oriente', 'Sur')
 NS = {'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-FIELDS = {'CC':'cc','Nombre Tienda':'store_name','DM':'dm','Región':'region','Fecha Apertura':'opening_date','Municipio':'municipality','Cobertura':'coverage','Formato':'format','Formato Comercial':'commercial_format','Tier':'tier','Latitud':'latitude','Longitud':'longitude','Activa':'active'}
+FIELDS = {'CC':'cc','Nombre Tienda':'store_name','DM':'dm','Región':'region','Fecha Apertura':'opening_date','Municipio':'municipality','Cobertura':'coverage','Formato':'format','Formato Comercial':'commercial_format','Tier':'tier','Latitud':'latitude','Longitud':'longitude','Activa':'active','Estatus':'operating_status','DM Directorio':'dm_directory','Fuente Región DM':'directory_source','Fuente Coordenadas':'coordinate_source','Estatus Alsea':'directory_status','Observaciones':'directory_notes'}
 REQUIRED = ('CC','Nombre Tienda','DM','Fecha Apertura','Municipio','Cobertura','Latitud','Longitud')
 
 
@@ -73,8 +73,8 @@ def excel_date(value, date1904=False):
     raise ValidationError('Fecha inválida: '+value)
 
 
-def read_locations(path):
-    """Lee solo Ubicaciones. Los indicadores no condicionan el mapa."""
+def read_sheet(path,sheet_name):
+    """Lee valores de una hoja sin requerir Excel ni evaluar sus fórmulas."""
     with zipfile.ZipFile(path) as archive:
         if sum(x.file_size for x in archive.infolist())>100*1024*1024:raise ValidationError('El Excel descomprimido supera 100 MB.')
         strings=[]
@@ -82,8 +82,8 @@ def read_locations(path):
             strings=[''.join(n.text or '' for n in si.iter('{'+NS['s']+'}t')) for si in ET.fromstring(archive.read('xl/sharedStrings.xml')).findall('s:si',NS)]
         workbook=ET.fromstring(archive.read('xl/workbook.xml'))
         rels={r.attrib['Id']:r.attrib['Target'] for r in ET.fromstring(archive.read('xl/_rels/workbook.xml.rels'))}
-        sheet=next((s for s in workbook.find('s:sheets',NS) if s.attrib['name']=='Ubicaciones'),None)
-        if sheet is None:raise ValidationError('Falta la hoja Ubicaciones.')
+        sheet=next((s for s in workbook.find('s:sheets',NS) if s.attrib['name']==sheet_name),None)
+        if sheet is None:raise ValidationError('Falta la hoja '+sheet_name+'.')
         target=rels[sheet.attrib['{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id']]
         target=target.lstrip('/') if target.startswith('/') else 'xl/'+target
         date1904=workbook.find('s:workbookPr',NS)
@@ -95,16 +95,41 @@ def read_locations(path):
                 col=re.sub(r'\d','',cell.attrib['r']);v=cell.find('s:v',NS);value=v.text if v is not None else ''
                 if cell.attrib.get('t')=='s':value=strings[int(value)]
                 elif cell.attrib.get('t')=='inlineStr':value=''.join(t.text or '' for t in cell.findall('.//s:t',NS))
+                elif cell.attrib.get('t')=='d':value=datetime.fromisoformat(value.replace('Z','+00:00')).date().isoformat()
                 if cell.attrib.get('t')=='e':value='#ERROR_EXCEL'
                 cells[col]=clean(value)
             parsed.append((int(row.attrib['r']),cells))
-    if not parsed:raise ValidationError('La hoja Ubicaciones está vacía.')
+    if not parsed:raise ValidationError('La hoja '+sheet_name+' está vacía.')
     headers=parsed[0][1]
-    missing=[h for h in REQUIRED if h not in headers.values()]
-    if missing:raise ValidationError('Faltan columnas: '+', '.join(missing))
     names=[h for h in headers.values() if h]
-    if len(names)!=len(set(names)):raise ValidationError('Hay encabezados duplicados en Ubicaciones.')
-    return [(n,{headers[k]:v for k,v in row.items() if headers.get(k)}) for n,row in parsed[1:]],date1904
+    if len(names)!=len(set(names)):raise ValidationError('Hay encabezados duplicados en '+sheet_name+'.')
+    return [(n,{name:row.get(k,'') for k,name in headers.items() if name}) for n,row in parsed[1:]],date1904
+
+
+def read_locations(path):
+    rows,date1904=read_sheet(path,'Ubicaciones')
+    headers=rows[0][1] if rows else {}
+    # Los encabezados vacíos también existen en los valores XML de la primera fila.
+    missing=[h for h in REQUIRED if h not in headers]
+    if missing:raise ValidationError('Faltan columnas: '+', '.join(missing))
+    return rows,date1904
+
+
+def is_point(s):
+    return all(isinstance(s.get(k),(int,float)) and math.isfinite(s[k]) for k in ('latitude','longitude')) and abs(s['latitude'])<=90 and abs(s['longitude'])<=180
+
+
+def is_open(s):return s.get('status')=='Actual' and s.get('active') is not False
+
+
+def catalog_pairs(path):
+    rows,_=read_sheet(path,'Catalogos')
+    return {(clean(r.get('Región')),clean(r.get('DM'))) for _,r in rows if clean(r.get('Región')) and clean(r.get('DM'))}
+
+
+def validate_pairs(stores,pairs):
+    unknown=[s['cc']+' · '+s['region']+' / '+s['dm'] for s in stores if (s['region'],s['dm']) not in pairs]
+    if unknown:raise ValidationError('Región/DM no registrado en Catalogos: '+', '.join(unknown[:12]))
 
 
 def in_ring(point,ring):
@@ -150,25 +175,36 @@ def normalize_rows(rows,geo,date1904=False,rules=None):
             if cc in seen:raise ValidationError('CeCo duplicado '+cc)
             seen.add(cc)
             if not s['store_name'] or not s['dm']:raise ValidationError('Nombre de tienda y DM son obligatorios.')
+            explicit='Estatus' in row
+            if explicit and not clean(row.get('Región')):raise ValidationError('Región explícita obligatoria en el directorio CMS.')
+            operation=clean(s['operating_status'])
+            allowed=('Abierta','Próxima Apertura','Cierre Temporal','Cierre Definitivo','Por validar')
+            if explicit and operation not in allowed:raise ValidationError('Estatus operativo inválido: '+operation)
+            missing_coordinates=not clean(s['latitude']) and not clean(s['longitude'])
             for field in ('latitude','longitude'):
+                if missing_coordinates and explicit:s[field]=None;continue
                 original=s[field];fixed=re.sub(r'^([+-]?\d+(?:\.\d+)?)\s*,$',r'\1',original)
                 if fixed!=original:corrections.append({'cc':cc,'field':field,'detail':'Coma final de pegado retirada; no se estimó otra coordenada.'})
                 try:s[field]=float(fixed)
                 except (TypeError,ValueError):raise ValidationError('Coordenada inválida: '+field)
                 if not math.isfinite(s[field]):raise ValidationError('Coordenada no finita: '+field)
-            if not -90<=s['latitude']<=90 or not -180<=s['longitude']<=180:raise ValidationError('Coordenadas fuera de rango.')
-            s['opening_date']=excel_date(s['opening_date'],date1904);s['status']='Actual' if s['opening_date'] else 'Apertura'
-            s['active']=norm(s['active']) not in ('no','false','0','inactiva')
-            a=find_area(s['latitude'],s['longitude'],geo)
-            s.update(region=origin_region(s['dm'],s['region'],rules),zone=(a.get('zone') or a.get('region')) if a else fallback_zone(s['latitude'],s['longitude']),municipality_id=a['id'] if a else None,geo_municipality=a['name'] if a else None)
+            if not missing_coordinates and not is_point(s):raise ValidationError('Coordenadas fuera de rango.')
+            s['opening_date']=excel_date(s['opening_date'],date1904)
+            s['status']=('Actual' if operation=='Abierta' else 'Apertura' if operation=='Próxima Apertura' else 'Cerrada' if operation in ('Cierre Temporal','Cierre Definitivo') else 'Por validar') if explicit else ('Actual' if s['opening_date'] else 'Apertura')
+            s['operating_status']=operation if explicit else ('Abierta' if s['status']=='Actual' else 'Próxima Apertura')
+            s['active']=norm(s['active']) not in ('no','false','0','inactiva') and s['status']!='Cerrada'
+            a=find_area(s['latitude'],s['longitude'],geo) if is_point(s) else None
+            s.update(region=origin_region(s['dm'],s['region'],rules),zone=(a.get('zone') or a.get('region')) if a else fallback_zone(s['latitude'],s['longitude']) if is_point(s) else None,municipality_id=a['id'] if a else None,geo_municipality=a['name'] if a else None)
             confirmation=rules.get('confirmed_locations',{}).get(cc,{})
-            confirmed=confirmation.get('latitude')==s['latitude'] and confirmation.get('longitude')==s['longitude']
+            confirmed=bool(confirmation) and is_point(s) and confirmation.get('latitude')==s['latitude'] and confirmation.get('longitude')==s['longitude']
             if confirmed:s['location_verification']=confirmation['note']
-            if s['zone'] not in ZONES:s['zone']=fallback_zone(s['latitude'],s['longitude'])
-            if not a:warnings.append({'cc':cc,'kind':'outside','title':'Fuera del fondo disponible','detail':'Revisar coordenadas o ampliar el fondo. El pin se conserva.'})
+            s['mapping_status']='Ubicable' if is_point(s) else 'Pendiente'
+            if is_point(s) and s['zone'] not in ZONES:s['zone']=fallback_zone(s['latitude'],s['longitude'])
+            if not is_point(s):warnings.append({'cc':cc,'kind':'missing_coordinates','title':'Coordenadas pendientes','detail':'La tienda permanece en el directorio y su conteo; no se dibuja un pin estimado.'})
+            elif not a:warnings.append({'cc':cc,'kind':'outside','title':'Fuera del fondo disponible','detail':'Revisar coordenadas o ampliar el fondo. El pin se conserva.'})
             elif not confirmed and norm(s['coverage'])!=norm(states.get(a['state'],s['coverage'])):
                 warnings.append({'cc':cc,'kind':'state_mismatch','title':'Validar ubicación','detail':s['municipality']+' · '+s['coverage']+' en Excel; coordenada en '+a['name']+' · '+states.get(a['state'],a['state'])+'.'})
-            if not s['active']:warnings.append({'cc':cc,'kind':'inactive','title':'Estatus de origen inactivo','detail':'La ubicación se conserva para revisión; confirma su consideración en la propuesta.'})
+            if not s['active'] and s['status'] not in ('Cerrada',):warnings.append({'cc':cc,'kind':'inactive','title':'Estatus de origen inactivo','detail':'La ubicación se conserva para revisión; confirma su consideración en la propuesta.'})
             stores.append(s)
         except ValidationError as exc:errors.extend(label+': '+err for err in exc.errors)
     if errors:raise ValidationError(errors)
@@ -187,18 +223,27 @@ def prepare(root):
     folder=root/'static/planning';geo=read_js(folder/'geography.js','MAPA_GEO')
     rules=regional_rules(root)
     rows,date1904=read_locations(root/'cms/Mapa_CentroNorte_CMS.xlsx');stores,warnings,corrections=normalize_rows(rows,geo,date1904,rules)
+    if any('Estatus' in row for _,row in rows):
+        pairs=catalog_pairs(root/'cms/Mapa_CentroNorte_CMS.xlsx')
+        validate_pairs(stores,pairs)
     signature=digest(stores);stamp=datetime.now(timezone.utc).isoformat(timespec='seconds')
-    metadata={'version':'4.0.0','signature':signature,'region':REGION,'regional_rules':rules,'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'validated_at':stamp,'source_repo':'sbx-mex/Mapa_CentroNorte','geography_signature':digest(geo),'source_workbook_sha256':hashlib.sha256((root/'cms/Mapa_CentroNorte_CMS.xlsx').read_bytes()).hexdigest()}
+    metadata={'version':'4.4.0','signature':signature,'region':REGION,'regional_rules':rules,'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'validated_at':stamp,'source_repo':'sbx-mex/Mapa_CentroNorte','geography_signature':digest(geo),'source_workbook_sha256':hashlib.sha256((root/'cms/Mapa_CentroNorte_CMS.xlsx').read_bytes()).hexdigest()}
+    if any('Estatus' in row for _,row in rows):
+        catalog,_=read_sheet(root/'cms/Mapa_CentroNorte_CMS.xlsx','Catalogos')
+        metadata['dm_labels']={clean(r.get('DM')):clean(r.get('Mostrar como')) for _,r in catalog if clean(r.get('DM')) and clean(r.get('Mostrar como'))}
+    metadata['asset_version']=metadata['signature']+'-'+metadata['source_workbook_sha256'][:8]
+    metadata['directory']={'schema':1,'hierarchy':['Región','DM','Tienda'],'regions':rules['regions'],'operating_statuses':['Abierta','Próxima Apertura','Cierre Temporal','Cierre Definitivo','Por validar']}
     base={'metadata':metadata,'stores':stores};by_cc={s['cc']:s for s in stores}
-    nearest={s['cc']:[{'cc':other['cc'],'km':round(distance(s,other),6)} for other in sorted((x for x in stores if x['cc']!=s['cc']),key=lambda other:distance(s,other))[:3]] for s in stores}
+    located=[s for s in stores if is_point(s)]
+    nearest={s['cc']:([{'cc':other['cc'],'km':round(distance(s,other),6)} for other in sorted((x for x in located if x['cc']!=s['cc']),key=lambda other:distance(s,other))[:3]] if is_point(s) else []) for s in stores}
     dms=[]
     for dm in sorted({s['dm'] for s in stores}):
         team=[s for s in stores if s['dm']==dm]
-        span=max((distance(a,b) for i,a in enumerate(team) for b in team[i+1:]),default=0)
-        dms.append({'dm':dm,'count':len(team),'openings':sum(s['status']=='Apertura' for s in team),'span_km':round(span,2)})
-    regional=[{'region':r,'total':sum(s['region']==r for s in stores),'current':sum(s['region']==r and s['status']=='Actual' for s in stores),'openings':sum(s['region']==r and s['status']=='Apertura' for s in stores)} for r in rules['regions']]
+        span=max((distance(a,b) for i,a in enumerate(team) for b in team[i+1:] if is_point(a) and is_point(b)),default=0)
+        dms.append({'dm':dm,'count':len(team),'open':sum(is_open(s) for s in team),'openings':sum(s['status']=='Apertura' for s in team),'span_km':round(span,2)})
+    regional=[{'region':r,'total':sum(s['region']==r for s in stores),'open':sum(s['region']==r and is_open(s) for s in stores),'current':sum(s['region']==r and s['status']=='Actual' for s in stores),'openings':sum(s['region']==r and s['status']=='Apertura' for s in stores)} for r in rules['regions']]
     home=next(r for r in regional if r['region']==REGION)
-    insights={'status':'valid','signature':signature,'validated_at':stamp,'region':REGION,'counts':{'total':len(stores),'current':sum(s['status']=='Actual' for s in stores),'openings':sum(s['status']=='Apertura' for s in stores),'regional_total':home['total'],'regional_current':home['current'],'regional_openings':home['openings'],'external':len(stores)-home['total'],'dms':len(dms),'review':len({w['cc'] for w in warnings})},'regions':regional,'confirmed_locations':{s['cc']:s['location_verification'] for s in stores if s.get('location_verification')},'warnings':warnings,'corrections':corrections,'dms':dms,'nearest':nearest,'checks':{'unique_ceco':True,'coordinates':True,'dates':True,'regions_valid':True,'geography':True},'method':'Distancia Haversine en línea recta; las zonas del fondo son referencias geográficas.'}
+    insights={'status':'valid','signature':signature,'validated_at':stamp,'region':REGION,'counts':{'total':len(stores),'current':sum(s['status']=='Actual' for s in stores),'openings':sum(s['status']=='Apertura' for s in stores),'regional_total':home['total'],'regional_current':home['current'],'regional_openings':home['openings'],'external':len(stores)-home['total'],'dms':len(dms),'open':sum(is_open(s) for s in stores),'mapped_open':sum(is_open(s) and is_point(s) for s in stores),'closed':sum(s['status']=='Cerrada' for s in stores),'status_differences':sum(bool(s.get('directory_status')) and s['directory_status']!=s['operating_status'] for s in stores),'review':len({w['cc'] for w in warnings})},'regions':regional,'confirmed_locations':{s['cc']:s['location_verification'] for s in stores if s.get('location_verification')},'warnings':warnings,'corrections':corrections,'dms':dms,'nearest':nearest,'checks':{'unique_ceco':True,'coordinates':True,'dates':True,'regions_valid':True,'geography':True},'method':'Distancia Haversine en línea recta; las zonas del fondo son referencias geográficas.'}
     # Verificar enlaces locales y contratos de navegación antes de marcar verde.
     html=(root/'index.html').read_text(encoding='utf-8')
     for href in re.findall(r'(?:src|href)="([^"]+)"',html):
@@ -220,7 +265,7 @@ def atomic_write(path,text):
 
 
 def main(argv=None):
-    p=argparse.ArgumentParser(description='Actualiza y valida el mapa Centro Norte sin instalación adicional.')
+    p=argparse.ArgumentParser(description='Actualiza y valida el mapa Centro Norte desde el mismo Excel CMS.')
     p.add_argument('--check',action='store_true',help='Valida también que la vista publicada coincida con el Excel, sin escribir.')
     p.add_argument('--no-open',action='store_true');p.add_argument('--root',type=Path,default=Path(__file__).resolve().parent)
     args=p.parse_args(argv);root=args.root.resolve();folder=root/'static/planning'
@@ -228,23 +273,31 @@ def main(argv=None):
         base,insights=prepare(root)
         if args.check:
             stored=read_js(folder/'base.js','MAPA_BASE');health=read_js(folder/'insights.js','MAPA_INSIGHTS')
-            if stored['metadata'].get('signature')!=base['metadata']['signature'] or stored['metadata'].get('geography_signature')!=base['metadata']['geography_signature'] or health.get('signature')!=base['metadata']['signature'] or health.get('status')!='valid':
+            if stored['metadata'].get('signature')!=base['metadata']['signature'] or stored['metadata'].get('geography_signature')!=base['metadata']['geography_signature'] or stored['metadata'].get('source_workbook_sha256')!=base['metadata']['source_workbook_sha256'] or health.get('signature')!=base['metadata']['signature'] or health.get('status')!='valid':
                 raise ValidationError('La vista no coincide con el Excel. Ejecuta ACTUALIZAR_MAPA.py y sube base.js e insights.js.')
             if any(s.get('region') not in base['metadata']['regional_rules']['regions'] for s in stored['stores']):raise ValidationError('Hay tiendas con región desconocida.')
             if stored['metadata'].get('regional_rules')!=base['metadata']['regional_rules']:raise ValidationError('Actualiza la vista para aplicar las reglas regionales vigentes.')
             for key in ('counts','regions','warnings','corrections','confirmed_locations','dms','nearest','checks'):
                 if health.get(key)!=insights.get(key):raise ValidationError('La revisión no coincide con los datos: '+key+'. Ejecuta ACTUALIZAR_MAPA.py.')
             if digest(stored['stores'])!=base['metadata']['signature']:raise ValidationError('La instantánea contiene datos alterados o desactualizados.')
+            from cms_service import synchronize_outputs
+            _,changed=synchronize_outputs(root/'cms/Mapa_CentroNorte_CMS.xlsx',root/'data/stores.json',root/'data.csv',dry_run=True)
+            if changed:raise ValidationError('El directorio derivado no coincide con el mismo CMS. Ejecuta ACTUALIZAR_MAPA.py.')
             html=(root/'index.html').read_text(encoding='utf-8')
             for filename in ('base.js','insights.js'):
-                if 'static/planning/'+filename+'?v='+base['metadata']['signature'] not in html:raise ValidationError('La entrada no referencia la última base. Ejecuta ACTUALIZAR_MAPA.py.')
+                if 'static/planning/'+filename+'?v='+base['metadata']['asset_version'] not in html:raise ValidationError('La entrada no referencia la última base. Ejecuta ACTUALIZAR_MAPA.py.')
         else:
+            from cms_service import synchronize_outputs
+            synchronize_outputs(root/'cms/Mapa_CentroNorte_CMS.xlsx',root/'data/stores.json',root/'data.csv')
             # Las firmas de ambos archivos deben coincidir para que la interfaz muestre verde.
             atomic_write(folder/'base.js','window.MAPA_BASE = '+json.dumps(base,ensure_ascii=False,separators=(',',':'))+';\n')
             atomic_write(folder/'insights.js','window.MAPA_INSIGHTS = '+json.dumps(insights,ensure_ascii=False,separators=(',',':'))+';\n')
+            from cms_service import synchronize_outputs
+            _,changed=synchronize_outputs(root/'cms/Mapa_CentroNorte_CMS.xlsx',root/'data/stores.json',root/'data.csv',dry_run=True)
+            if changed:raise ValidationError('El directorio derivado no coincide con el mismo CMS. Ejecuta ACTUALIZAR_MAPA.py.')
             html=(root/'index.html').read_text(encoding='utf-8')
             for filename in ('base.js','insights.js'):
-                html=re.sub(r'static/planning/'+re.escape(filename)+r'(?:\?v=[^"\s]+)?','static/planning/'+filename+'?v='+base['metadata']['signature'],html)
+                html=re.sub(r'static/planning/'+re.escape(filename)+r'(?:\?v=[^"\s]+)?','static/planning/'+filename+'?v='+base['metadata']['asset_version'],html)
             atomic_write(root/'index.html',html)
         c=insights['counts'];print(f"VALIDADO: {REGION} {c['regional_current']} actuales + {c['regional_openings']} aperturas | {c['external']} externas | {c['total']} ubicaciones | {c['review']} por revisar")
         if not args.check and not args.no_open:webbrowser.open((root/'index.html').as_uri())

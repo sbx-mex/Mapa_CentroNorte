@@ -1,16 +1,22 @@
 (function (root, factory) {
   const config = typeof module === 'object' && module.exports ? require('./regional-rules.json') : root.MAPA_BASE.metadata.regional_rules;
-  const api = factory(config);
+  const api = factory(config,root.MAPA_BASE?.metadata?.dm_labels||{});
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.PlanningCore = api;
-})(typeof window === 'undefined' ? globalThis : window, function (rules) {
+})(typeof window === 'undefined' ? globalThis : window, function (rules,sourceLabels) {
   'use strict';
   const decisions = ['Por evaluar', 'Conservar', 'Tomar', 'Ceder', 'Reasignar', 'No considerar'];
   const REGION=rules.home_region, regions=rules.regions;
   const zones = ['Centro', 'Norte', 'Poniente', 'Sur', 'Oriente'];
   const zoneColors = {Norte:'#38859a', Poniente:'#768c56', Centro:'#00704a', Oriente:'#d39236', Sur:'#a05279'};
   const regionColors = {'Centro Norte':'#006241','Centro Sur':'#b04270','Centro Poniente':'#7453a6','Centro Centro':'#2876b2','Bajío':'#c26a16'};
-  const isOpen = s => s.status==='Actual' && s.active!==false;
+  const isOpen = s => s.status==='Actual' && s.active!==false && (!s.operating_status||s.operating_status==='Abierta');
+  const hasPoint = s => !!s && validPoint(s.latitude,s.longitude);
+  function directoryTree(base,search=''){
+    const query=norm(search);
+    const stores=base.stores.filter(s=>isOpen(s)&&(!query||norm([s.cc,s.store_name,s.region,s.dm,dmLabel(s.dm,base.metadata.dm_labels),s.dm_directory,s.municipality].join(' ')).includes(query)));
+    return regions.map(region=>{const list=stores.filter(s=>s.region===region);const dms=[...new Set(list.map(s=>s.dm))].sort((a,b)=>dmLabel(a).localeCompare(dmLabel(b),'es'));return {region,total:list.length,dms:dms.map(dm=>({dm,total:list.filter(s=>s.dm===dm).length,stores:list.filter(s=>s.dm===dm).sort((a,b)=>a.store_name.localeCompare(b.store_name,'es'))}))};});
+  }
   function regionalCounts(base,state,view='proposal') {
     const original=base.stores.filter(isOpen),proposed=current(base,state,view).filter(isOpen);
     return regions.map(region=>{
@@ -29,11 +35,12 @@
   function auditRegions(base,state,geo,view='proposal') {
     const stores=current(base,state,view).filter(s=>isOpen(s)&&s.decision!=='No considerar'),items=[];
     for(const s of stores){
-      const area=findArea(s.latitude,s.longitude,geo),zone=area?mapZone(area.properties,state.areas):suggestedRegion(s.latitude,s.longitude);
+      if(!hasPoint(s)){items.push({cc:s.cc,store_name:s.store_name,region:s.region,zone:'Pendiente',reasons:['Coordenadas pendientes en el CMS; no se estima un pin.'],locationConfirmed:false});continue;}
+      const located=stores.filter(hasPoint),area=findArea(s.latitude,s.longitude,geo),zone=area?mapZone(area.properties,state.areas):suggestedRegion(s.latitude,s.longitude);
       const reasons=[];
       if(!area)reasons.push('Fuera de los límites municipales disponibles; validar cobertura.');
       if(s.region===REGION&&zone==='Sur')reasons.push('Centro Norte en zona geográfica Sur; revisar si la cobertura es conveniente.');
-      const peers=nearest(s,stores.filter(x=>x.region===s.region),1),near=nearest(s,stores,3);
+      const peers=nearest(s,located.filter(x=>x.region===s.region),1),near=nearest(s,located,3);
       if(peers.length&&peers[0].km>20)reasons.push('A '+Math.round(peers[0].km)+' km de la tienda disponible más cercana de su región.');
       const other=near.filter(x=>x.region!==s.region&&x.km<=5);
       if(near.length===3&&other.length===3)reasons.push('Sus tres vecinas disponibles a menos de 5 km son de otra región.');
@@ -74,7 +81,7 @@
     const region=rules.dm_origins[norm(dm)];
     return regions.includes(region)?region:REGION;
   }
-  function dmLabel(dm){const label=rules.dm_labels[norm(dm)];return typeof label==='string'?label:dm;}
+  function dmLabel(dm,labels=sourceLabels){const label=labels[dm]||labels[norm(dm)]||rules.dm_labels[norm(dm)];return typeof label==='string'?label:dm;}
   function inRegion(s,region=REGION){return s.region===region&&s.decision!=='No considerar';}
   function movement(s){
     if(s.decision==='No considerar')return 'No considerar';
@@ -122,6 +129,7 @@
     return polygons.some(p=>inRing(point,p[0]) && !p.slice(1).some(h=>inRing(point,h)));
   }
   function findArea(lat, lng, geo) {
+    if(!validPoint(lat,lng))return undefined;
     return geo.municipalities.features.find(f=>{
       const b=f.properties.bbox;
       return lng>=b[0] && lat>=b[1] && lng<=b[2] && lat<=b[3] && contains([lng,lat],f.geometry);
@@ -189,14 +197,14 @@
   function filtered(stores,filter) {
     return stores.filter(s=>(!filter.search || norm([s.cc,s.store_name,s.dm,dmLabel(s.dm),s.region,s.origin_region,s.municipality,s.geo_municipality].join(' ')).includes(norm(filter.search))) && (!filter.dm||s.dm===filter.dm)&&(!filter.zone||s.zone===filter.zone)&&(!filter.status||s.status===filter.status)&&(!filter.decision||s.movement===filter.decision||s.decision===filter.decision)&&(!filter.region||s.region===filter.region)&&(!filter.origin||s.origin_region===filter.origin)&&(!filter.scope||filter.scope==='all'||(filter.scope==='home'&&inRegion(s))||(filter.scope==='moves'&&(s.region!==s.origin_region||s.decision==='No considerar'))||(filter.scope==='external'&&s.origin_region!==REGION)||(filter.scope==='outgoing'&&s.origin_region===REGION&&!inRegion(s))));
   }
-  function nearest(store,stores,n=3) {return stores.filter(s=>s.cc!==store.cc).map(s=>({...s,km:distance(store,s)})).sort((a,b)=>a.km-b.km).slice(0,n);}
+  function nearest(store,stores,n=3) {if(!hasPoint(store))return [];return stores.filter(s=>s.cc!==store.cc&&hasPoint(s)).map(s=>({...s,km:distance(store,s)})).sort((a,b)=>a.km-b.km).slice(0,n);}
   function validateBase(base) {
     if(!base || !base.metadata || typeof base.metadata.signature!=='string'||!Array.isArray(base.stores)||!base.stores.length||base.stores.length>10000) throw new Error('Base del escenario inválida.');
     const seen=new Set();
     base.stores.forEach(s=>{
       // Migrar la referencia geográfica de 3.0 sin convertirla en región comercial.
       if(!s.zone && zones.includes(s.region)){s.zone=s.region;s.region=originRegion(s.dm);}
-      if(!/^\d{5}$/.test(s.cc)||seen.has(s.cc)||!validPoint(s.latitude,s.longitude)||!clean(s.store_name)||!clean(s.dm)||!regions.includes(s.region)||!zones.includes(s.zone)) throw new Error('La base contiene una ubicación inválida o duplicada.');
+      if(!/^\d{5}$/.test(s.cc)||seen.has(s.cc)||(!hasPoint(s)&&!(s.latitude===null&&s.longitude===null&&s.mapping_status==='Pendiente'))||!clean(s.store_name)||!clean(s.dm)||!regions.includes(s.region)||!(zones.includes(s.zone)||!hasPoint(s)&&s.zone===null)) throw new Error('La base contiene una ubicación inválida o duplicada.');
       if(s.opening_date!=null)excelDate(s.opening_date);
       seen.add(s.cc);
     });
@@ -233,9 +241,9 @@
   }
   function csv(base,state,settings={}) {
     const byId=new Map(base.stores.map(s=>[s.cc,s]));
-    const headers=['CeCo','Tienda','Región origen','Región propuesta','Movimiento','En Centro Norte propuesta','Estatus','Fecha apertura','Municipio Excel','Municipio por coordenada','DM base','DM propuesta','Zona base','Zona propuesta','Decisión','Notas','Latitud base','Longitud base','Latitud propuesta','Longitud propuesta'];
-    const rows=current(base,state).filter(s=>!settings.openOnly||isOpen(s)).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude];});
+    const headers=['CeCo','Tienda','Región origen','Región propuesta','Movimiento','En Centro Norte propuesta','Estatus','Fecha apertura','Municipio Excel','Municipio por coordenada','DM base','DM propuesta','Zona base','Zona propuesta','Decisión','Notas','Latitud base','Longitud base','Latitud propuesta','Longitud propuesta','DM directorio','Estatus operativo','Fuente Región DM'];
+    const rows=current(base,state).filter(s=>!settings.openOnly||isOpen(s)).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude,b.dm_directory||'',b.operating_status||'',b.directory_source||''];});
     return '\uFEFF'+[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
   }
-  return {REGION,decisions,regions,rules,regionColors,isOpen,regionalCounts,reconcileState,auditRegions,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
+  return {REGION,decisions,regions,rules,regionColors,isOpen,hasPoint,directoryTree,regionalCounts,reconcileState,auditRegions,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
 });

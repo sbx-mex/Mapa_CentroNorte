@@ -71,11 +71,10 @@ class QualityTests(unittest.TestCase):
 
     def test_region_origins_and_national_options(self):
         base,health=q.prepare(ROOT)
-        self.assertEqual(health['counts']['regional_current'],73)
-        self.assertEqual(health['counts']['regional_openings'],3)
-        self.assertEqual(health['counts']['external'],27)
-        self.assertEqual(sum(s['region']=='Bajío' for s in base['stores']),14)
-        self.assertEqual(sum(s['region']=='Centro Sur' for s in base['stores']),13)
+        self.assertEqual({r['region'] for r in health['regions']},set(q.regional_rules()['regions']))
+        self.assertEqual(sum(r['open'] for r in health['regions']),health['counts']['open'])
+        self.assertTrue(all(s['region']=='Bajío' for s in base['stores'] if s['dm']=='David Carrasco'))
+        self.assertTrue(all(s['region']=='Centro Sur' for s in base['stores'] if s['dm']=='Moni Morales'))
 
     def test_explicit_future_region_wins_over_dm_inference(self):
         a=self.row();a[1]['DM']='David Carrasco'
@@ -121,6 +120,43 @@ class QualityTests(unittest.TestCase):
             with redirect_stderr(io.StringIO()):self.assertEqual(q.main(['--root',str(r),'--no-open']),2)
             self.assertEqual((r/'static/planning/base.js').read_bytes(),previous)
             self.assertEqual(q.read_js(r/'static/planning/insights.js','MAPA_INSIGHTS')['status'],'blocked')
+
+    def test_explicit_status_wins_over_empty_or_planned_opening_date(self):
+        a=self.row();a[1].update({'Región':'Centro Sur','Estatus':'Abierta'})
+        b=self.row('70002');b[1].update({'Región':'Bajío','Estatus':'Próxima Apertura','Fecha Apertura':'2026-10-11'})
+        c=self.row('70003');c[1].update({'Región':'Centro Norte','Estatus':'Cierre Temporal','Fecha Apertura':'2010-01-01'})
+        stores,_,_=q.normalize_rows([a,b,c],self.geo)
+        self.assertEqual([s['status'] for s in stores],['Actual','Apertura','Cerrada'])
+        self.assertEqual([q.is_open(s) for s in stores],[True,False,False])
+
+    def test_cms_requires_region_and_rejects_wrong_region_dm_pair(self):
+        a=self.row();a[1]['Estatus']='Abierta'
+        with self.assertRaisesRegex(q.ValidationError,'Región explícita'):q.normalize_rows([a],self.geo)
+        q.validate_pairs([{'cc':'70001','region':'Centro Norte','dm':'DM uno'}],{('Centro Norte','DM uno')})
+        with self.assertRaisesRegex(q.ValidationError,'Región/DM'):
+            q.validate_pairs([{'cc':'70001','region':'Centro Sur','dm':'DM uno'}],{('Centro Norte','DM uno')})
+
+    def test_missing_coordinate_is_pending_without_an_estimated_pin(self):
+        a=self.row();a[1].update({'Región':'Centro Norte','Estatus':'Abierta','Latitud':'','Longitud':''})
+        stores,warnings,_=q.normalize_rows([a],self.geo)
+        self.assertEqual(stores[0]['latitude'],None);self.assertEqual(stores[0]['longitude'],None)
+        self.assertEqual(stores[0]['mapping_status'],'Pendiente');self.assertTrue(q.is_open(stores[0]))
+        self.assertEqual(warnings[0]['kind'],'missing_coordinates')
+
+    def test_map_and_legacy_directory_read_the_same_cms_fields(self):
+        from cms_service import workbook_to_payload
+        base,_=q.prepare(ROOT);payload=workbook_to_payload(ROOT/'cms/Mapa_CentroNorte_CMS.xlsx')
+        actual={s['cc']:s for s in payload['stores']}
+        for store in base['stores']:
+            for field in ('region','dm','store_name','status','operating_status','latitude','longitude'):
+                self.assertEqual(store[field],actual[store['cc']][field],store['cc']+' '+field)
+
+    def test_cms_keeps_operational_status_differences_visible(self):
+        base,_=q.prepare(ROOT)
+        differences=[s for s in base['stores'] if s.get('directory_status') and s['directory_status']!=s['operating_status']]
+        for s in differences:
+            self.assertTrue(s['directory_notes']);self.assertEqual(s['operating_status'],'Cierre Temporal');self.assertFalse(q.is_open(s))
+
 
     def test_no_public_file_upload_or_import_button(self):
         html=(ROOT/'index.html').read_text()

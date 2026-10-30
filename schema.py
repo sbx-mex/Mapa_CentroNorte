@@ -1,7 +1,7 @@
 """Esquema canónico del CMS Centro Norte."""
 
 LOCATION_HEADERS = [
-    "CC", "Nombre Tienda", "DM", "Fecha Apertura", "Municipio", "Cobertura",
+    "CC", "Nombre Tienda", "DM", "Región", "Estatus", "DM Directorio", "Fuente Región DM", "Fuente Coordenadas", "Estatus Alsea", "Observaciones", "Fecha Apertura", "Municipio", "Cobertura",
     "Formato", "Formato Comercial", "Tier", "Latitud", "Longitud", "Activa",
 ]
 
@@ -15,6 +15,13 @@ LOCATION_MAP = {
     "CC": "cc",
     "Nombre Tienda": "store_name",
     "DM": "dm",
+    "Región": "region",
+    "Estatus": "operating_status",
+    "DM Directorio": "dm_directory",
+    "Fuente Región DM": "directory_source",
+    "Fuente Coordenadas": "coordinate_source",
+    "Estatus Alsea": "directory_status",
+    "Observaciones": "directory_notes",
     "Fecha Apertura": "opening_date",
     "Municipio": "municipality",
     "Cobertura": "coverage",

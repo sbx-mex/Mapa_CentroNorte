@@ -27,8 +27,10 @@ def load_database() -> dict:
 
 
 def render_index(page: str) -> bytes:
-    if page == "mapa":
-        return (BASE_DIR / "index.html").read_bytes()
+    if page in ("mapa","directorio"):
+        html=(BASE_DIR/"index.html").read_text(encoding="utf-8")
+        if page=="directorio":html=html.replace('<body class=', '<body data-open-directory="true" class=',1)
+        return html.encode("utf-8")
     source = (BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
     if page == "mapa":
         replacements = {"{{PAGE}}": "mapa", "{{PAGE_TITLE}}": "Mapa de tiendas", "{{CONTENT_VIEW}}": '<div id="map" aria-label="Mapa de tiendas"></div>'}
@@ -111,7 +113,7 @@ class AppHandler(BaseHTTPRequestHandler):
             self.send_bytes(render_admin(), "text/html; charset=utf-8"); return
         if route == "/api/stores":
             self.send_json(load_database()); return
-        if route == "/descargar/cms":
+        if route in ("/descargar/cms", "/cms/Mapa_CentroNorte_CMS.xlsx"):
             self.send_local_file(CMS_FILE, CMS_FILE.name); return
         if route == "/descargar/json":
             self.send_local_file(DATA_FILE, "stores.json"); return

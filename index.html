@@ -12,14 +12,14 @@
   <link rel="stylesheet" href="static/planning/planning.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/quality.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/regional.css?v=4.1.0">
-  <link rel="stylesheet" href="static/planning/map-view.css?v=4.3.0">
+  <link rel="stylesheet" href="static/planning/map-view.css?v=4.4.0">
   <script defer src="static/vendor/leaflet.js"></script>
   <script defer src="static/vendor/leaflet.markercluster.js"></script>
   <script defer src="static/planning/geography.js"></script>
-  <script defer src="static/planning/base.js?v=eff554032ac83600f0fa"></script>
-  <script defer src="static/planning/insights.js?v=eff554032ac83600f0fa"></script>
-  <script defer src="static/planning/core.js?v=4.3.0"></script>
-  <script defer src="static/planning/app.js?v=4.3.0"></script>
+  <script defer src="static/planning/base.js?v=d7bbbc61789e1fc6653b-70e3e808"></script>
+  <script defer src="static/planning/insights.js?v=d7bbbc61789e1fc6653b-70e3e808"></script>
+  <script defer src="static/planning/core.js?v=4.4.0"></script>
+  <script defer src="static/planning/app.js?v=4.4.0"></script>
 </head>
 <body class="map-first region-planner">
   <a class="skip-link" href="#search">Buscar una tienda</a>
@@ -40,7 +40,7 @@
       <div class="filters">
         <label class="region-select-label">Región Starbucks<select id="regionFilter"><option value="">Todas las disponibles</option></select></label>
         <div id="scopeSummary" class="scope-summary"></div>
-        <details class="dm-span"><summary>Desplegar DM <b id="dmCount">0</b></summary><div id="dmSpan"></div><label>Filtrar DM<select id="dmFilter"><option value="">Todos los DM</option></select></label><button id="teamBtn" class="link-button">Administrar DM</button></details>
+        <details class="dm-span"><summary>Desplegar DM <b id="dmCount">0</b></summary><div id="dmSpan"></div><label>Filtrar DM<select id="dmFilter"><option value="">Todos los DM</option></select></label></details>
         <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar tienda o CeCo" autocomplete="off" aria-label="Buscar tienda, CeCo, DM o municipio"><span class="key">/</span></label>
         <details class="more-filters"><summary>Más filtros <span aria-hidden="true">+</span></summary><div class="filter-grid"><label>Zona del fondo<select id="zoneFilter"><option value="">Todas las zonas</option></select></label><label>Movimiento<select id="decisionFilter"><option value="">Todas las decisiones</option></select></label></div><button id="backgroundBtn" class="link-button">Ajustar fondo INEGI</button></details>
         <div class="filter-actions"><span id="filterCount"></span><button id="clearFilters" class="link-button">Ver todas</button></div>
@@ -54,6 +54,7 @@
       <nav class="map-launchers" aria-label="Controles del mapa">
         <button id="mobileListBtn" aria-expanded="false" aria-controls="sidebar"><span aria-hidden="true">☰</span> Región</button>
         <div class="view-switch" role="group" aria-label="Comparar base actual y propuesta"><button data-view="base" aria-pressed="true">Base actual</button><button data-view="proposal" aria-pressed="false">Mi propuesta</button></div>
+        <button id="directoryBtn"><span aria-hidden="true">⌄</span> Directorio</button>
         <button id="auditBtn"><span aria-hidden="true">◎</span> Auditoría <b id="auditCount">0</b></button>
       </nav>
       <div id="storeCounter" class="store-counter" aria-live="polite"></div>

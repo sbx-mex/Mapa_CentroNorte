@@ -13,7 +13,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from openpyxl import load_workbook
+from ACTUALIZAR_MAPA import read_locations, read_sheet, read_js, normalize_rows, regional_rules, excel_date, ValidationError, catalog_pairs, validate_pairs
 
 from schema import (
     LOCATION_HEADERS, LOCATION_MAP, METRIC_HEADERS, METRIC_MAP,
@@ -21,7 +21,7 @@ from schema import (
 )
 
 LEGACY_HEADERS = [
-    "CC Nombre", "CC", "DM", "Fecha de Apertura", "Rolling", "TPLH", "IPLH",
+    "CC Nombre", "CC", "Región", "DM", "DM Directorio", "Estatus", "Fecha de Apertura", "Rolling", "TPLH", "IPLH",
     "Labor", "Dif Labor%", "Ventas", "Dif ppto%", "OMT #", "NPS", "Conexión",
     "Bebida", "CTC", "Costo", "Dif costo%", "EBITDA", "Dif EBITDA %", "DT Time",
     "Tiempo DT AA", "Municipio o Delegación", "Cobertura", "Formato",
@@ -29,7 +29,7 @@ LEGACY_HEADERS = [
 ]
 
 LEGACY_FIELDS = {
-    "CC Nombre": "store_name", "CC": "cc", "DM": "dm",
+    "CC Nombre": "store_name", "CC": "cc", "DM": "dm", "Región": "region", "DM Directorio": "dm_directory", "Estatus": "operating_status",
     "Fecha de Apertura": "opening_date", "Rolling": "rolling_pct", "TPLH": "tplh",
     "IPLH": "iplh", "Labor": "labor_pct", "Dif Labor%": "labor_variance_pct",
     "Ventas": "sales_mxn", "Dif ppto%": "budget_variance_pct", "OMT #": "omt",
@@ -91,94 +91,43 @@ def _to_float(value: Any, label: str, errors: list[str], allow_none: bool = True
 
 
 def workbook_to_payload(path: str | Path) -> dict[str, Any]:
-    wb = load_workbook(path, data_only=True, read_only=True)
-    errors: list[str] = []
+    """El mapa y el directorio leen exactamente la misma región, DM y estatus."""
+    root=Path(__file__).resolve().parent
     try:
-        if 'Ubicaciones' not in wb.sheetnames:
-            raise CMSValidationError(['Falta la pestaña Ubicaciones'])
-        locations = _read_sheet(wb['Ubicaciones'], LOCATION_HEADERS)
-        metrics = _read_sheet(wb['Indicadores'], METRIC_HEADERS) if 'Indicadores' in wb.sheetnames else []
-    finally:
-        wb.close()
-
-    location_by_cc: dict[str, dict[str, Any]] = {}
-    for row in locations:
-        cc = str(row.get("CC") or "").strip()
-        label = f"Ubicaciones fila {row['_row']}"
-        if not cc:
-            errors.append(f"{label}: CC es obligatorio")
-            continue
-        if cc in location_by_cc:
-            errors.append(f"{label}: CC duplicado {cc}")
-            continue
-        if not row.get("Nombre Tienda"):
-            errors.append(f"{label}: Nombre Tienda es obligatorio")
-        # El CMS recibido contiene tres latitudes con una coma final de pegado.
-        # Admitir solo ese caso inequívoco; otros valores siguen dando error.
-        coordinates = []
-        for field in ("Latitud", "Longitud"):
-            value = _clean(row.get(field))
-            if isinstance(value, str) and re.fullmatch(r"[+-]?\d+(?:\.\d+)?\s*,", value):
-                value = value.rstrip(",").strip()
-            coordinates.append(_to_float(value, f"{label} {field}", errors, False))
-        lat, lng = coordinates
-        if lat is not None and not (-90 <= lat <= 90):
-            errors.append(f"{label}: Latitud fuera de rango")
-        if lng is not None and not (-180 <= lng <= 180):
-            errors.append(f"{label}: Longitud fuera de rango")
-        row["Latitud"], row["Longitud"] = lat, lng
-        location_by_cc[cc] = row
-
-    metric_by_cc: dict[str, dict[str, Any]] = {}
-    for row in metrics:
-        cc = str(row.get("CC") or "").strip()
-        label = f"Indicadores fila {row['_row']}"
-        if not cc:
-            errors.append(f"{label}: CC es obligatorio")
-            continue
-        if cc in metric_by_cc:
-            errors.append(f"{label}: CC duplicado {cc}")
-            continue
-        metric_by_cc[cc] = row
-
-    missing_metrics = sorted(set(location_by_cc).difference(metric_by_cc))
-    orphan_metrics = sorted(set(metric_by_cc).difference(location_by_cc))
-    # Una ubicación, incluida una apertura, no necesita indicadores para mapearse.
-    if orphan_metrics:
-        errors.append("Indicadores sin ubicación: " + ", ".join(orphan_metrics[:12]))
-
-    stores = []
-    for cc, location in location_by_cc.items():
-        merged: dict[str, Any] = {}
-        for header, field in LOCATION_MAP.items():
-            merged[field] = location.get(header)
-        metric = metric_by_cc.get(cc, {})
-        for header, field in METRIC_MAP.items():
-            if field != "cc":
-                merged[field] = metric.get(header)
-        merged["cc"] = cc
-        active = merged.get("active")
-        merged["active"] = str(active).strip().lower() not in {"no", "false", "0", "inactiva"}
-        for field in NUMBER_FIELDS | PERCENT_FIELDS:
-            if field in {"latitude", "longitude"}:
-                continue
-            merged[field] = _to_float(merged.get(field), f"CC {cc} {field}", errors)
-        stores.append(merged)
-
-    if errors:
-        raise CMSValidationError(errors)
-
-    stores.sort(key=lambda item: (str(item.get("dm") or ""), str(item.get("store_name") or "")))
-    return {
-        "metadata": {
-            "schema_version": 2,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "source": "Excel CMS",
-            "store_count": len(stores),
-            "locations_without_metrics": missing_metrics,
-        },
-        "stores": stores,
-    }
+        rows,date1904=read_locations(Path(path))
+        geo=read_js(root/'static/planning/geography.js','MAPA_GEO')
+        stores,_,_=normalize_rows(rows,geo,date1904,regional_rules(root))
+        if any('Estatus' in row for _,row in rows):
+            pairs=catalog_pairs(Path(path))
+            validate_pairs(stores,pairs)
+        try:metrics,metric_date1904=read_sheet(Path(path),'Indicadores')
+        except ValidationError as exc:
+            if 'Falta la hoja Indicadores.' not in str(exc):raise
+            metrics=[];metric_date1904=False
+    except (ValidationError,ValueError,KeyError) as exc:
+        raise CMSValidationError([str(exc)]) from exc
+    errors=[];metric_by_cc={}
+    for line,row in metrics:
+        cc=str(row.get('CC') or '').strip()
+        if not cc and not any(str(row.get(k) or '').strip() for k in METRIC_MAP):continue
+        if not cc:errors.append('Indicadores fila '+str(line)+': CC obligatorio');continue
+        if cc in metric_by_cc:errors.append('Indicadores: CC duplicado '+cc)
+        metric_by_cc[cc]=row
+    known={s['cc'] for s in stores}
+    orphan=sorted(set(metric_by_cc)-known)
+    if orphan:errors.append('Indicadores sin ubicación: '+', '.join(orphan[:12]))
+    for store in stores:
+        metric=metric_by_cc.get(store['cc'],{})
+        for header,field in METRIC_MAP.items():
+            if field=='cc':continue
+            value=metric.get(header)
+            if header=='Corte YTD':
+                try:store[field]=excel_date(value,metric_date1904)
+                except ValidationError:errors.append('Corte YTD inválido para '+store['cc'])
+            elif field in NUMBER_FIELDS|PERCENT_FIELDS:store[field]=_to_float(value,'CC '+store['cc']+' '+field,errors)
+            else:store[field]=_clean(value)
+    if errors:raise CMSValidationError(errors)
+    return {'metadata':{'schema_version':3,'updated_at':datetime.now(timezone.utc).isoformat(),'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'locations_without_metrics':sorted(known-set(metric_by_cc))},'stores':stores}
 
 
 def _backup(path: Path) -> None:
@@ -282,6 +231,11 @@ def apply_cms_workbook(
         changed.append(str(cms_path))
     payload, output_changes = synchronize_outputs(cms_path, database_path, legacy_csv_path)
     changed.extend(output_changes)
+    root=cms_path.parent.parent
+    if cms_path.parent.name=='cms' and (root/'static/planning/geography.js').is_file():
+        from ACTUALIZAR_MAPA import main
+        if main(['--root',str(root),'--no-open'])!=0:raise CMSValidationError(['No se pudo regenerar el mapa del mismo CMS.'])
+        changed.extend(str(root/f) for f in ('index.html','static/planning/base.js','static/planning/insights.js'))
     return payload, changed
 
 
