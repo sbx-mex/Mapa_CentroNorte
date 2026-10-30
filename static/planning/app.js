@@ -1,4 +1,4 @@
-/* 4.4 · Un CMS: Región > DM > Tienda. El directorio conserva el origen. */
+/* 4.5 · Región reúne el directorio, la ubicación y la validación del CMS. */
 (() => {
   'use strict';
   const C=window.PlanningCore, geo=window.MAPA_GEO, $=id=>document.getElementById(id), e=C?C.escape:String;
@@ -11,10 +11,12 @@
   let menusVisible=true,pinsVisible=true;
   let areaMode=false,areaStart=null,areaRectangle=null, toastTimer, tileErrors=0;
   let cachedStores=[],visible=[], markers=new Map();
-  const filter={search:'',dm:'',zone:'',status:'Actual',decision:'',origin:'',region:C.REGION,scope:'all'};
+  const filter={search:'',dm:'',zone:'',status:'',decision:'',origin:'',region:C.REGION,scope:'all'};
+  let includeOpenings=true;
+  const expandedDms=new Set();
   let drafts={};
   try{drafts=JSON.parse(localStorage.getItem(STORAGE+'-drafts')||'{}');}catch(error){}
-  let auditResult={checked:0,items:[]};
+  let auditResult={checked:0,items:[]},auditKey='';
   const geoById=new Map(geo.municipalities.features.map(f=>[f.properties.id,f]));
   const STATE_NAMES={'09':'Ciudad de México','13':'Hidalgo','15':'Estado de México','17':'Morelos','21':'Puebla','29':'Tlaxcala','16':'Michoacán','22':'Querétaro'};
   let scenarioNotice='';
@@ -66,7 +68,7 @@
   function options(values,current,placeholder) {
     return (placeholder!==undefined?'<option value="">'+e(placeholder)+'</option>':'')+values.map(v=>'<option value="'+e(v)+'"'+(v===current?' selected':'')+'>'+e(v)+'</option>').join('');
   }
-  function dmsForRegion(region){return [...new Set(base.stores.filter(s=>s.region===region&&C.isOpen(s)).map(s=>s.dm))].sort((a,b)=>C.dmLabel(a).localeCompare(C.dmLabel(b),'es'));}
+  function dmsForRegion(region){return [...new Set(base.stores.filter(s=>s.region===region&&C.isPlannable(s)).map(s=>s.dm))].sort((a,b)=>C.dmLabel(a).localeCompare(C.dmLabel(b),'es'));}
   function populateStoreDms(region,requested){
     const values=dmsForRegion(region);$('storeDm').innerHTML=options(values,values.includes(requested)?requested:'','Por asignar');
   }
@@ -78,6 +80,17 @@
   function badge(s){const decision=s.movement||s.decision;const css={'Por evaluar':'review','Conservar':'keep','Tomar':'keep','Ceder':'move','Reasignar':'move','No considerar':'drop'}[decision];return '<span class="badge '+css+'">'+e(decision)+'</span>';}
   function number(value){return new Intl.NumberFormat('es-MX',{maximumFractionDigits:1}).format(value);}
   function dateLabel(date){if(!date)return 'Sin fecha · apertura';return new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));}
+  function proposalCaption(store){const row=C.regionalCounts(base,state).find(r=>r.region===store.region);return e(store.region)+' · '+row.total+' abiertas'+(row.openings?' + '+row.openings+' aperturas':'');}
+  function metricPanel(store){
+    const numeric=v=>typeof v==='number'&&Number.isFinite(v);
+    const hasData=['sales_mxn','iplh','tplh','connection_pct','labor_pct'].some(k=>numeric(store[k]));
+    if(!hasData)return '<div class="metrics-pending">'+(C.isOpening(store)?'Apertura · indicadores pendientes. Ubicación disponible.':'Indicadores pendientes en el CMS.')+'</div>';
+    const percent=v=>numeric(v)?number(v*100)+'%':'—',value=v=>numeric(v)?number(v):'—';
+    const profileDate=store.profile_cutoff||store.cutoff_ytd,businessDate=store.business_cutoff||store.cutoff_ytd;
+    const profileMonths=store.profile_months?' · '+store.profile_months+' meses':'',businessMonths=store.business_months?' · '+store.business_months+' meses':'';
+    const card=(label,amount)=>'<div><span>'+label+'</span><b>'+amount+'</b></div>';
+    return '<details class="store-metrics"><summary>Indicadores de tienda <span>'+e(store.metric_source?'Perfil de Tienda':'Datos del CMS')+'</span></summary><div class="metrics-period">Operación: '+e(profileDate?dateLabel(profileDate):'sin corte')+profileMonths+'<br>Ventas: '+e(businessDate?dateLabel(businessDate):'sin corte')+businessMonths+'</div><div class="store-metric-grid">'+card('Venta acumulada',numeric(store.sales_mxn)?'$'+new Intl.NumberFormat('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}).format(store.sales_mxn/1000000)+' M':'—')+card('IPLH promedio',value(store.iplh))+card('TPLH promedio',value(store.tplh))+card('Rotación · último dato',percent(store.rolling_pct))+card('Labor promedio',percent(store.labor_pct))+card('Conexión promedio',percent(store.connection_pct))+'</div><p class="hint">Fuente: '+e(store.metric_source||'CMS')+'. NPS y CTC quedan pendientes cuando la fuente no incluye un equivalente.</p></details>';
+  }
   function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),4200);}
   function persist(){
     try{localStorage.setItem(STORAGE,JSON.stringify(C.pack(base,state)));if($('saveState'))$('saveState').textContent='Guardado en este equipo';}
@@ -122,8 +135,9 @@
     if(open&&focusSearch)$('search').focus();
   }
   function render(){
-    captureDraft();cachedStores=C.current(base,state,view).filter(C.isOpen);visible=C.filtered(cachedStores,filter);
-    auditResult=C.auditRegions(base,state,geo,view);
+    captureDraft();cachedStores=C.current(base,state,view).filter(C.isPlannable);visible=C.filtered(cachedStores,filter).filter(s=>includeOpenings||C.isOpen(s));
+    const nextAuditKey=base.metadata.signature+'|'+view+'|'+JSON.stringify(state.updates)+'|'+JSON.stringify(state.areas);
+    if(nextAuditKey!==auditKey){auditResult=C.auditRegions(base,state,geo,view);auditKey=nextAuditKey;}
     renderFilters();renderList();renderPins();renderLegend();renderDock();renderBackground();renderStats();renderHealth();
     document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-pressed',String(b.dataset.view===view));});
     $('backgroundBtn').setAttribute('aria-pressed',String(inspectorMode==='background'));
@@ -133,31 +147,22 @@
     renderNearby();syncMenus();
   }
   function renderStats(){
-    const counts=C.regionalCounts(base,state,view),chosen=filter.region?counts.find(x=>x.region===filter.region):null;
-    let totals=chosen||{region:'Todas las disponibles',base:counts.reduce((n,x)=>n+x.base,0),total:counts.reduce((n,x)=>n+x.total,0),delta:counts.reduce((n,x)=>n+x.delta,0),incoming:0,outgoing:0,available:true};
-    if(filter.dm){
-      const matches=s=>(!filter.region||s.region===filter.region)&&s.dm===filter.dm&&s.decision!=='No considerar';
-      const original=base.stores.filter(C.isOpen),proposed=cachedStores,byId=new Map(original.map(s=>[s.cc,s]));
-      const before=original.filter(matches),included=proposed.filter(matches);
-      totals={region:C.dmLabel(filter.dm),base:before.length,total:included.length,delta:included.length-before.length,incoming:included.filter(s=>!matches(byId.get(s.cc))).length,outgoing:before.filter(s=>!proposed.some(x=>x.cc===s.cc&&matches(x))).length,available:true};
-    }
-    const pending=!totals.available,partial=chosen&&!base.metadata.directory&&chosen.region!==C.REGION;
-    const amount=pending&&totals.total===0?'—':totals.total;
-    $('storeCounter').innerHTML='<div><span class="counter-kicker">'+(view==='base'?'BASE ACTUAL':'MI PROPUESTA')+'</span><b>'+e(totals.region)+'</b></div><strong>'+amount+'<small>'+(pending?'disponibles':'abiertas')+'</small></strong><span class="counter-change">'+(pending?'Total regional pendiente':view==='base'?(partial?'Disponibles · total regional pendiente':'Tiendas en esta base'):(totals.delta>0?'+':'')+totals.delta+' vs. base '+totals.base+(partial?' · total pendiente':''))+'</span>';
-    $('scopeSummary').innerHTML='<div class="span-header"><span>SPAN DE TIENDAS</span><b>'+amount+'</b></div><div class="span-caption">'+(pending?'Total regional pendiente de validar':view==='base'?'Abiertas en la base actual':'Abiertas en la propuesta')+'</div>'+((chosen||filter.dm)?'<div class="span-delta"><span>Base <b>'+(pending?'—':totals.base)+'</b></span><span>Se suman <b>+'+totals.incoming+'</b></span><span>Se ceden <b>−'+totals.outgoing+'</b></span></div>'+(partial?'<p class="hint">Catálogo parcial: faltan tiendas por validar de esta región.</p>':''):'<p class="hint">Directorio CMS: '+counts.filter(r=>r.available).map(r=>r.base+' '+e(r.region)).join(', ')+'. Región y DM conservan el origen del directorio.</p>');
-    const group=cachedStores.filter(s=>(!filter.region||s.region===filter.region)&&s.decision!=='No considerar'),dms=[...new Set(group.map(s=>s.dm))];
-    $('dmCount').textContent=dms.length;
-    $('dmSpan').innerHTML=dms.map(dm=>{const total=group.filter(s=>s.dm===dm).length;return '<button data-action="filter-dm" data-dm="'+e(dm)+'" class="dm-span-row'+(filter.dm===dm?' active':'')+'"><span>'+e(C.dmLabel(dm))+'</span><b>'+total+'</b><i style="width:'+Math.max(8,total/Math.max(1,group.length)*100)+'%"></i></button>';}).join('')||'<p class="hint">DM y tiendas pendientes de información.</p>';
-    $('regionLegend').innerHTML='<span class="pin-key-title">PINES · STARBUCKS</span>'+counts.map(r=>'<button title="'+(r.available?'Región del directorio CMS':'Sin catálogo · total pendiente')+'" data-action="filter-region" data-region="'+e(r.region)+'" aria-pressed="'+(filter.region===r.region)+'" style="--region:'+C.regionColors[r.region]+'"><i></i><span>'+e(r.region)+'</span><b>'+(r.available?r.total:r.total?'+'+r.total:'Pendiente')+'</b></button>').join('')+(filter.region?'<button data-action="all-regions" class="all-regions">Todas</button>':'');
+    const counts=C.regionalCounts(base,state,view),all=C.current(base,state,view).filter(C.isPlannable);
+    const matches=s=>(!filter.region||s.region===filter.region)&&(!filter.dm||s.dm===filter.dm)&&s.decision!=='No considerar';
+    const group=all.filter(matches),opened=group.filter(C.isOpen).length,aperturas=group.filter(C.isOpening).length;
+    const original=base.stores.filter(s=>C.isOpen(s)&&matches(s)).length;
+    const label=filter.dm?C.dmLabel(filter.dm):(filter.region||'Todas las regiones');
+    $('storeCounter').innerHTML='<div><span class="counter-kicker">'+(view==='base'?'BASE ACTUAL':'MI PROPUESTA')+'</span><b>'+e(label)+'</b></div><strong>'+opened+'<small>abiertas</small></strong><span class="counter-change">'+(aperturas?'<b class="opening-key">+ '+aperturas+' aperturas</b>':'')+(view==='proposal'?'<span>'+(opened-original>=0?'+':'')+(opened-original)+' abiertas vs. base</span>':'')+'</span>';
+    $('storeCounter').classList.toggle('with-openings',aperturas>0);
+    $('openingCount').textContent=all.filter(s=>C.isOpening(s)&&(!filter.region||s.region===filter.region)).length;
+    $('directoryContext').textContent=view==='base'?'BASE ACTUAL · DIRECTORIO':'MI PROPUESTA · DIRECTORIO';
+    $('regionLegend').innerHTML='<span class="pin-key-title">REGIONES STARBUCKS</span>'+counts.map(r=>'<button title="'+r.total+' abiertas'+(r.openings?' y '+r.openings+' aperturas':'')+'" data-action="filter-region" data-region="'+e(r.region)+'" aria-pressed="'+(filter.region===r.region)+'" style="--region:'+C.regionColors[r.region]+'"><i></i><span>'+e(r.region)+'</span><b>'+r.total+(r.openings?'<small> +'+r.openings+' ap.</small>':'')+'</b></button>').join('')+(filter.region?'<button data-action="all-regions" class="all-regions">Todas</button>':'');
     $('auditCount').textContent=auditResult.items.filter(s=>!filter.region||s.region===filter.region).length;
-    const moves=C.current(base,state).filter(s=>C.isOpen(s)&&(s.region!==s.origin_region||s.decision==='No considerar'));
-    $('changesCount').textContent=moves.length;
+    $('changesCount').textContent=changedStores().length;
   }
   function renderHealth(){
     $('reviewBtn').classList.toggle('blocked',!healthy);
     $('healthText').textContent=healthy?'Base validada':'Revisar base';
-    const stores=C.current(base,state).filter(C.isOpen),done=stores.filter(s=>s.decision!=='Por evaluar').length,percent=Math.round(done/Math.max(1,stores.length)*100);
-    $('completionMeter').innerHTML='<span>'+done+' revisadas</span><div><i style="width:'+percent+'%"></i></div>';
   }
   function closest(s,stores,n=3){
     const moved=Object.values(state.updates).some(u=>u.latitude!=null||u.longitude!=null);
@@ -168,26 +173,44 @@
     return C.nearest(s,stores,n);
   }
   function reviewData(){
-    const open=base.stores.filter(C.isOpen),baseline=C.regionalCounts(base,C.freshState(),'base'),warnings=(insights.warnings||[]).filter(w=>open.some(s=>s.cc===w.cc));
-    modal(healthy?'Base validada':'Revisar base','Validación de datos; la cobertura regional se revisa aparte en Auditoría.',
-      '<div class="review-metrics"><div><strong>'+open.length+'</strong><span>abiertas disponibles</span></div><div><strong>'+open.filter(s=>s.region===C.REGION).length+'</strong><span>Centro Norte</span></div><div><strong>'+base.stores.filter(s=>s.status==='Apertura').length+'</strong><span>aperturas excluidas</span></div></div><div class="check-grid">'+['CeCo únicos','Coordenadas numéricas','Fechas consistentes','Regiones de origen'].map(t=>'<span class="'+(healthy?'check-ok':'check-pending')+'">'+(healthy?'✓':'○')+' '+t+'</span>').join('')+'</div>'+(healthy?'':'<div class="error-text">'+e((insights.errors||['La validación no coincide con la base.']).join('\n'))+'</div>')+warnings.map(w=>'<button class="review-issue" data-action="review-focus" data-cc="'+e(w.cc)+'"><strong>'+e(w.cc)+'</strong><span>'+e(w.detail)+'</span></button>').join('')+'<div class="note">'+baseline.filter(r=>r.available).map(r=>e(r.region)+': '+r.base+' abiertas disponibles').join('. ')+'. Las cinco regiones, DM y estatus proceden del mismo CMS. Se conserva el estatus operativo de Ops en los casos distintos de Alsea. Las aperturas se conservan en el respaldo, fuera del mapa y los conteos.</div><div class="confirmed-location">Toreo Walmart · 43302: ubicación confirmada por el Regional. Coordenadas conservadas.</div>',
+    const stores=base.stores.filter(s=>C.isPlannable(s)&&(!filter.region||s.region===filter.region));
+    const opened=stores.filter(C.isOpen),aperturas=stores.filter(C.isOpening),missing=stores.filter(s=>!C.hasPoint(s));
+    const withMetrics=opened.filter(s=>typeof s.sales_mxn==='number'||typeof s.iplh==='number');
+    const pending=opened.filter(s=>!withMetrics.some(x=>x.cc===s.cc));
+    const point=s=>'<button class="review-issue" data-action="review-focus" data-cc="'+s.cc+'"><strong>'+e(s.store_name)+'</strong><span>'+s.cc+' · '+e(C.dmLabel(s.dm))+'</span></button>';
+    modal(healthy?'Validar datos':'Revisar base',filter.region||'Todas las regiones',
+      '<div class="review-metrics"><div><strong>'+opened.length+'</strong><span>abiertas</span></div><div><strong>'+aperturas.length+'</strong><span>aperturas</span></div><div><strong>'+missing.length+'</strong><span>por ubicar</span></div></div><div class="check-grid">'+['CeCo sin duplicar','Región y DM del CMS','Estatus diferenciado','Misma base en todo el mapa'].map(t=>'<span class="'+(healthy?'check-ok':'check-pending')+'">'+(healthy?'✓':'○')+' '+t+'</span>').join('')+'</div>'+(healthy?'':'<div class="error-text">'+e((insights.errors||['La validación no coincide con la base.']).join('\n'))+'</div>')+'<div class="validation-section"><h3>Ubicaciones</h3><p>'+ (stores.length-missing.length)+' de '+stores.length+' tienen coordenadas. Las aperturas llevan + en el pin y se cuentan aparte.</p>'+missing.map(point).join('')+'</div><div class="validation-section"><h3>Indicadores</h3><p>'+withMetrics.length+' de '+opened.length+' abiertas con datos. Consulta el corte de operación y de ventas en cada ficha.</p>'+(pending.length?'<details><summary>'+pending.length+' abiertas pendientes</summary>'+pending.map(point).join('')+'</details>':'')+'</div>'+(aperturas.length?'<details class="validation-openings" open><summary>'+aperturas.length+' aperturas · ubicación primero</summary>'+aperturas.map(point).join('')+'</details>':'')+'<p class="hint">La consistencia de datos no sustituye la revisión territorial. Auditoría evalúa señales geográficas de las abiertas.</p>',
       '<button class="primary" data-action="close-modal">Volver al mapa</button>');
   }
   function renderFilters(){
-    $('dmFilter').innerHTML='<option value="">Todos los DM</option>'+[...new Set(cachedStores.filter(s=>!filter.region||s.region===filter.region).map(s=>s.dm))].map(dm=>'<option value="'+e(dm)+'"'+(filter.dm===dm?' selected':'')+'>'+e(C.dmLabel(dm))+'</option>').join('');
     const counts=C.regionalCounts(base,state,view);
-    $('regionFilter').innerHTML='<option value="">Todas las disponibles · '+cachedStores.length+'</option>'+counts.map(r=>'<option value="'+e(r.region)+'"'+(filter.region===r.region?' selected':'')+'>'+e(r.region)+' · '+(r.available?r.total+' abiertas':r.total?'+'+r.total+' propuestas · total pendiente':'Total pendiente')+'</option>').join('');
+    $('regionFilter').innerHTML='<option value="">Todas las regiones</option>'+counts.map(r=>'<option value="'+e(r.region)+'"'+(filter.region===r.region?' selected':'')+'>'+e(r.region)+' · '+r.total+(r.openings?' + '+r.openings+' ap.':'')+'</option>').join('');
     $('zoneFilter').innerHTML=options(C.zones,filter.zone,'Todas las zonas');
     $('decisionFilter').innerHTML=options(C.decisions,filter.decision,'Todas las decisiones');
-    $('filterCount').textContent=visible.length+(visible.length===1?' tienda abierta visible':' tiendas abiertas visibles');
+    const opened=visible.filter(C.isOpen).length,upcoming=visible.filter(C.isOpening).length;
+    $('filterCount').textContent=opened+' abiertas'+(upcoming?' + '+upcoming+' aperturas':'');
+    $('includeOpenings').checked=includeOpenings;
+    $('activeDm').hidden=!filter.dm;
+    $('activeDm').innerHTML=filter.dm?'<span>'+e(C.dmLabel(filter.dm))+'</span><button data-action="clear-dm" aria-label="Ver todos los DM">×</button>':'';
     const selectedVisible=visible.filter(s=>selected.has(s.cc)).length;
     $('selectVisible').checked=!!visible.length&&selectedVisible===visible.length;
     $('selectVisible').indeterminate=selectedVisible>0&&selectedVisible<visible.length;
   }
   function renderList(){
-    const sort=$('sortSelect').value;
-    const list=[...visible].sort((a,b)=>sort==='cc'?a.cc.localeCompare(b.cc):(a[sort].localeCompare(b[sort],'es')||a.cc.localeCompare(b.cc)));
-    $('storeList').innerHTML=list.length?list.map(s=>'<article class="store-row'+(focus===s.cc?' active':'')+(selected.has(s.cc)?' checked':'')+(!C.inRegion(s)?' external-row':'')+'" data-row="'+s.cc+'"><input type="checkbox" data-select="'+s.cc+'" aria-label="Seleccionar '+e(s.cc+' '+s.store_name)+'"'+(selected.has(s.cc)?' checked':'')+'><button data-action="focus" data-cc="'+s.cc+'" aria-label="Ver '+e(s.store_name)+' en el mapa"><i class="dm-swatch" style="--pin:'+pinColor(s)+'"></i><span class="row-content"><span class="store-meta"><span class="ceco">'+s.cc+'</span>'+(s.status==='Apertura'?'<span class="badge opening">APERTURA</span>':'')+(s.movement!=='Por evaluar'?badge(s):'')+'</span><span class="store-name">'+e(s.store_name)+'</span><span class="store-sub">'+e(s.origin_region)+(s.region!==s.origin_region?' → '+e(s.region):'')+'<span class="dm-only"> · '+e(C.dmLabel(s.dm))+'</span></span></span><span class="row-arrow">›</span></button></article>').join(''):'<div class="empty">No hay tiendas con estos filtros.<br>Usa «Limpiar filtros» para volver al mapa completo.</div>';
+    const container=$('storeList'),scroll=container.scrollTop,query=!!filter.search.trim();
+    const rows=list=>list.map(s=>'<article class="store-row'+(focus===s.cc?' active':'')+(selected.has(s.cc)?' checked':'')+'" data-row="'+s.cc+'"><input type="checkbox" data-select="'+s.cc+'" aria-label="Seleccionar '+e(s.cc+' '+s.store_name)+'"'+(selected.has(s.cc)?' checked':'')+'><button data-action="focus" data-cc="'+s.cc+'" aria-label="Ubicar '+e(s.store_name)+' en el mapa"><i class="dm-swatch" style="--pin:'+pinColor(s)+'"></i><span class="row-content"><span class="store-name">'+e(s.store_name)+'</span><span class="store-meta"><span class="ceco">'+s.cc+'</span>'+(C.isOpening(s)?'<span class="badge opening">APERTURA</span>':'')+(!C.hasPoint(s)?'<span class="badge opening">POR UBICAR</span>':'')+(s.movement!=='Por evaluar'?badge(s):'')+'</span></span><span class="row-arrow">↗</span></button></article>').join('');
+    const groups=C.regions.filter(region=>visible.some(s=>s.region===region)).sort((a,b)=>a===C.REGION?-1:b===C.REGION?1:a.localeCompare(b,'es'));
+    const html=groups.map(region=>{
+      const stores=visible.filter(s=>s.region===region),dms=[...new Set(stores.map(s=>s.dm))].sort((a,b)=>C.dmLabel(a).localeCompare(C.dmLabel(b),'es'));
+      return (!filter.region?'<h3 class="tree-region" style="--region:'+C.regionColors[region]+'"><i class="region-dot"></i>'+e(region)+'</h3>':'')+dms.map(dm=>{
+        const key=region+'|'+dm,list=stores.filter(s=>s.dm===dm).sort((a,b)=>a.store_name.localeCompare(b.store_name,'es')),opened=list.filter(C.isOpen).length,aperturas=list.filter(C.isOpening).length;
+        const full=base.stores.find(s=>s.region===region&&s.dm===dm)?.dm_directory||dm;
+        return '<details class="directory-team" data-team="'+e(key)+'"'+(query||expandedDms.has(key)||filter.dm===dm?' open':'')+'><summary title="'+e(full)+'"><span>'+e(C.dmLabel(dm))+'</span><b>'+opened+(aperturas?'<small> +'+aperturas+' ap.</small>':'')+'</b></summary><div class="team-map-actions"><button data-action="filter-team" data-region="'+e(region)+'" data-dm="'+e(dm)+'">Centrar este DM ↗</button><button data-action="select-team" data-region="'+e(region)+'" data-dm="'+e(dm)+'">Seleccionar</button></div>'+rows(list)+'</details>';
+      }).join('');
+    }).join('')||'<div class="empty">Sin coincidencias.<br>Prueba otro nombre o elige Todas las regiones.</div>';
+    if(container.innerHTML!==html)container.innerHTML=html;
+    container.scrollTop=scroll;
+    $('expandDms').textContent=[...container.querySelectorAll('.directory-team')].every(d=>d.open)?'Contraer DM':'Desplegar DM';
   }
   function makeIcon(s){
     const cls=['pin-shell',s.status==='Apertura'?'opening':'',s.movement==='Tomar'?'incoming-pin':'',s.movement==='Ceder'?'outgoing-pin':'',s.decision==='No considerar'?'drop':'',selected.has(s.cc)?'selected':'',focus===s.cc?'focused':''].filter(Boolean).join(' ');
@@ -196,9 +219,11 @@
   }
   function renderPins(){
     cluster.clearLayers();markers.clear();if(!pinsVisible)return;const ms=[];
-    visible.filter(C.hasPoint).forEach(s=>{
+    const shown=[...visible],focused=inspectorMode==='store'&&getStore(focus);
+    if(focused&&!shown.some(s=>s.cc===focused.cc))shown.push(focused);
+    shown.filter(C.hasPoint).forEach(s=>{
       const marker=L.marker([s.latitude,s.longitude],{icon:makeIcon(s),title:s.cc+' · '+s.store_name,alt:s.cc+' '+s.store_name,pinColor:pinColor(s),regionIncluded:C.inRegion(s),draggable:moving&&s.cc===focus,zIndexOffset:focus===s.cc?1200:0});
-      marker.bindTooltip('<b>'+e(s.cc+' · '+s.store_name)+'</b><br>'+e(s.origin_region)+(s.region!==s.origin_region?' → '+e(s.region):'')+'<br>'+e(C.dmLabel(s.dm))+(s.status==='Apertura'?'<br>Apertura · sin fecha':''));
+      marker.bindTooltip('<b>'+e(s.cc+' · '+s.store_name)+'</b><br>'+e(s.origin_region)+(s.region!==s.origin_region?' → '+e(s.region):'')+'<br>'+e(C.dmLabel(s.dm))+(C.isOpening(s)?'<br>Apertura · '+(s.opening_date?e(dateLabel(s.opening_date)):'fecha pendiente'):''));
       marker.on('click',event=>{
         if(areaMode){onAreaClick(event.latlng);return;}
         if(moving&&focus===s.cc)return;
@@ -267,12 +292,12 @@
     const mismatch=!confirmed&&liveArea&&C.norm(STATE_NAMES[liveArea.properties.state])!==C.norm(s.coverage);
     const geoNotes=!C.hasPoint(location)?'<div class="alert">Coordenadas pendientes. La tienda se conserva en el directorio sin estimar su pin.</div>':confirmed?'<div class="confirmed-location">✓ Ubicación confirmada por el Regional</div>':mismatch?'<div class="alert"><b>Validar ubicación</b><br>Excel: '+e(s.municipality)+' · '+e(s.coverage)+'<br>Coordenada: '+e(geomName)+'.</div>':'';
     const nearest=C.hasPoint(location)?closest(location,cachedStores.filter(C.hasPoint),3):[];
-    $('inspector').innerHTML='<div class="inspector-header"><span class="eyebrow">PROPONER TIENDA</span><button data-action="close-inspector" aria-label="Cerrar evaluación">×</button></div><div class="inspector-body"><span class="ceco">CECO '+s.cc+'</span><h2>'+e(s.store_name)+'</h2><p class="location-meta">'+e(s.municipality)+' · '+e(s.coverage)+(s.status==='Apertura'?'<br>Apertura · sin fecha':'')+'</p>'+geoNotes+'<div class="region-route"><div><small>ORIGEN STARBUCKS</small><b>'+e(original.region)+'</b></div><span>→</span><div><small>PROPUESTA STARBUCKS</small><b>'+e(s.region)+'</b></div></div><div class="proposal-message">'+(s.movement==='Tomar'?'Esta tienda se suma a Centro Norte.':s.movement==='Ceder'?'Se propone ceder esta tienda a '+e(s.region)+'.':home?'Tu tienda permanece en Centro Norte.':'Opción de '+e(original.region)+' para sumar a tu región.')+'</div>'+(view==='base'?'<div class="note base-notice">Estás viendo la base. Al guardar pasarás a Mi propuesta.</div>':'')+'<form id="storeForm"><label class="region-destination">Región interna propuesta<select id="storeRegion">'+options(C.regions,s.region)+'</select></label><div class="quick-proposals"><button type="button" data-action="choose-home">'+(home?'✓ Conservar en Centro Norte':'+ Tomar para Centro Norte')+'</button>'+(home?'<button type="button" data-action="choose-away">↗ Ceder a otra región</button>':'')+'</div><label class="proposal-notes">Motivo de la propuesta <span>(opcional)</span><textarea id="storeNotes" maxlength="2000" placeholder="¿Qué mejora esta decisión en el territorio?">'+e(s.notes)+'</textarea></label><details class="assignment-details"><summary>Asignación DM y zona</summary><div class="form-grid"><label class="full">DM de destino (opcional)<select id="storeDm">'+allDms().map(dm=>'<option value="'+e(dm)+'"'+(dm===s.dm?' selected':'')+'>'+e(C.dmLabel(dm))+'</option>').join('')+'</select></label><label class="full">Zona geográfica<select id="storeZone">'+options(C.zones,s.zone)+'</select></label></div><p class="hint">Solo se ofrecen DM de la región destino. Puedes dejarlo Por asignar. La zona del fondo es independiente.</p></details><span id="draftStatus" class="draft-status"></span><button class="primary save-proposal" type="submit">Guardar y actualizar conteo</button></form><div class="inline-actions"><button data-action="toggle-compare" data-cc="'+s.cc+'">'+(selected.has(s.cc)?'✓ En selección':'+ Seleccionar varias')+'</button><button data-action="reset-store" data-cc="'+s.cc+'">Restablecer</button></div><details class="location-details"><summary>Ubicación y cercanía</summary><div class="original-info">DM base: <b>'+e(C.dmLabel(original.dm))+'</b><br>'+e(dateLabel(s.opening_date))+'<br>Municipio por coordenada: '+e(geomName)+'</div><button data-action="move-pin" class="quiet">'+(moving?'Terminar ajuste':'Ajustar ubicación del pin')+'</button>'+(moving?'<div class="area-instruction">Arrastra el pin. La nueva coordenada se guarda al soltarlo; puedes deshacer.</div>':'')+'<p class="hint">'+(C.hasPoint(location)?location.latitude.toFixed(6)+', '+location.longitude.toFixed(6):'Coordenadas pendientes en el CMS')+'</p><div class="nearby-heading"><h3>Tiendas cercanas</h3><button data-action="nearby">'+(nearbyOn?'Ocultar líneas':'Ver cercanía')+'</button></div>'+nearest.map(n=>'<button class="nearby-row" data-action="near-focus" data-cc="'+n.cc+'"><i class="dm-swatch" style="--pin:'+pinColor(n)+'"></i><span>'+e(n.store_name)+'<small>'+n.cc+' · '+e(n.region)+'</small></span><b>'+number(n.km)+' km</b></button>').join('')+'<p class="hint">Distancias en línea recta; no son recorridos ni tiempos.</p></details></div>';
+    $('inspector').innerHTML='<div class="inspector-header"><button data-action="directory-return" class="back-directory">‹ Región / DM</button><button data-action="close-inspector" aria-label="Cerrar evaluación">×</button></div><div class="inspector-body"><span class="ceco">CECO '+s.cc+'</span><h2>'+e(s.store_name)+'</h2><div class="store-origin">'+e(original.region)+' · '+e(C.dmLabel(original.dm))+'</div><p class="location-meta">'+e(s.municipality)+' · '+e(s.coverage)+(C.isOpening(s)?'<br>Apertura · '+(s.opening_date?e(dateLabel(s.opening_date)):'fecha pendiente'):'')+'</p>'+geoNotes+metricPanel(original)+'<div class="proposal-message">'+proposalCaption(s)+'</div>'+(view==='base'?'<div class="note base-notice">Estás viendo la base. Al guardar pasarás a Mi propuesta.</div>':'')+'<form id="storeForm"><label class="region-destination">Región propuesta<select id="storeRegion">'+options(C.regions,s.region)+'</select></label><label class="proposal-notes">Motivo de la propuesta <span>(opcional)</span><textarea id="storeNotes" maxlength="2000" placeholder="¿Qué mejora esta decisión en el territorio?">'+e(s.notes)+'</textarea></label><details class="assignment-details"><summary>Asignación DM y zona</summary><div class="form-grid"><label class="full">DM de destino (opcional)<select id="storeDm">'+allDms().map(dm=>'<option value="'+e(dm)+'"'+(dm===s.dm?' selected':'')+'>'+e(C.dmLabel(dm))+'</option>').join('')+'</select></label><label class="full">Zona geográfica<select id="storeZone">'+options(C.zones,s.zone,s.zone?undefined:'Pendiente')+'</select></label></div><p class="hint">Solo se ofrecen DM de la región destino. Puedes dejarlo Por asignar. La zona del fondo es independiente.</p></details><span id="draftStatus" class="draft-status"></span><button class="primary save-proposal" type="submit">Guardar y actualizar conteo</button></form><div class="inline-actions"><button data-action="toggle-compare" data-cc="'+s.cc+'">'+(selected.has(s.cc)?'✓ En selección':'+ Seleccionar varias')+'</button><button data-action="reset-store" data-cc="'+s.cc+'">Restablecer</button></div><details class="location-details"><summary>Ubicación y cercanía</summary>'+(C.hasPoint(location)?'<a class="maps-link" href="https://www.google.com/maps/search/?api=1&amp;query='+location.latitude+','+location.longitude+'" target="_blank" rel="noopener">Abrir ubicación en Maps ↗</a>':'')+'<div class="original-info">DM base: <b>'+e(C.dmLabel(original.dm))+'</b><br>'+e(dateLabel(s.opening_date))+'<br>Municipio por coordenada: '+e(geomName)+'</div><button data-action="move-pin" class="quiet">'+(moving?'Terminar ajuste':'Ajustar ubicación del pin')+'</button>'+(moving?'<div class="area-instruction">Arrastra el pin. La nueva coordenada se guarda al soltarlo; puedes deshacer.</div>':'')+'<p class="hint">'+(C.hasPoint(location)?location.latitude.toFixed(6)+', '+location.longitude.toFixed(6):'Coordenadas pendientes en el CMS')+'</p><div class="nearby-heading"><h3>Tiendas cercanas</h3><button data-action="nearby">'+(nearbyOn?'Ocultar líneas':'Ver cercanía')+'</button></div>'+nearest.map(n=>'<button class="nearby-row" data-action="near-focus" data-cc="'+n.cc+'"><i class="dm-swatch" style="--pin:'+pinColor(n)+'"></i><span>'+e(n.store_name)+'<small>'+n.cc+' · '+e(n.region)+'</small></span><b>'+number(n.km)+' km</b></button>').join('')+'<p class="hint">Distancias en línea recta; no son recorridos ni tiempos.</p></details></div>';
     populateStoreDms(s.region,s.dm);restoreDraft();
     $('storeForm').addEventListener('input',captureDraft);
     $('storeForm').addEventListener('change',captureDraft);
     $('storeForm').addEventListener('submit',event=>{
-      event.preventDefault();const update={...(state.updates[focus]||{}),...C.proposalUpdate(original,$('storeRegion').value),dm:$('storeDm').value||'Por asignar',zone:$('storeZone').value,notes:$('storeNotes').value.trim()};
+      event.preventDefault();const update={...(state.updates[focus]||{}),...C.proposalUpdate(original,$('storeRegion').value),dm:$('storeDm').value||'Por asignar',zone:$('storeZone').value||original.zone,notes:$('storeNotes').value.trim()};
       transact(()=>{view='proposal';state.updates[focus]=update;delete drafts[focus];saveDrafts();},'Propuesta guardada · '+s.cc+' '+s.store_name);
     });
     $('storeRegion').addEventListener('change',()=>{populateStoreDms($('storeRegion').value,$('storeDm').value);updateDraftMessage(original);});
@@ -281,7 +306,7 @@
   function captureDraft(){
     if(!focus||!$('storeForm'))return;
     const saved=proposedStore(focus);if(!saved)return;
-    const draft={region:$('storeRegion').value,dm:$('storeDm').value||'Por asignar',zone:$('storeZone').value,notes:$('storeNotes').value};
+    const draft={region:$('storeRegion').value,dm:$('storeDm').value||'Por asignar',zone:$('storeZone').value||original.zone,notes:$('storeNotes').value};
     if(draft.region===saved.region&&draft.dm===saved.dm&&draft.zone===saved.zone&&draft.notes===saved.notes)delete drafts[focus];else drafts[focus]=draft;
     saveDrafts();if($('draftStatus'))$('draftStatus').textContent=drafts[focus]?'Borrador guardado en este equipo · aplica al guardar.':'';
   }
@@ -293,8 +318,8 @@
     updateDraftMessage(base.stores.find(s=>s.cc===focus));
   }
   function updateDraftMessage(original){
-    const region=$('storeRegion').value,u=C.proposalUpdate(original,region),row=C.regionalCounts(base,state).find(r=>r.region===region),was=C.inRegion(proposedStore(original.cc),region);
-    document.querySelector('.proposal-message').textContent=(u.decision==='Tomar'?'Tomar para ':u.decision==='Ceder'?'Ceder a ':u.decision==='Conservar'?'Conservar en ':'Proponer para ')+region+' · Al guardar: '+(row.total+1-(was?1:0))+' abiertas disponibles en '+region+(!$('storeDm').value?' · DM por asignar':'');
+    const region=$('storeRegion').value,u=C.proposalUpdate(original,region),row=C.regionalCounts(base,state).find(r=>r.region===region),was=C.inRegion(proposedStore(original.cc),region),apertura=C.isOpening(original);
+    document.querySelector('.proposal-message').textContent=(u.decision==='Tomar'?'Tomar para ':u.decision==='Ceder'?'Ceder a ':u.decision==='Conservar'?'Conservar en ':'Proponer para ')+region+' · Al guardar: '+((apertura?row.openings:row.total)+1-(was?1:0))+(apertura?' aperturas en ':' abiertas en ')+region+(!$('storeDm').value?' · DM por asignar':'');
     document.querySelector('.proposal-message').classList.add('draft-message');captureDraft();
   }
   function renderNearby(){
@@ -343,13 +368,13 @@
     if(!$('modal').open)$('modal').showModal();
   }
   function guide(){
-    modal('Región, tiendas y propuesta.','Solo tiendas abiertas. El mapa ocupa toda la superficie de trabajo.',
-      '<div class="guide-grid guide-three"><div class="guide-card"><span>01</span><h3>Filtra la región</h3><p>Abre Región o pulsa su color en la leyenda. Verás las tiendas disponibles y podrás desplegar el span por DM.</p></div><div class="guide-card"><span>02</span><h3>Ajusta una tienda</h3><p>Selecciona el pin, elige su región destino y guarda. El pin y los conteos cambian con la propuesta. Las casillas permiten proponer varias juntas.</p></div><div class="guide-card"><span>03</span><h3>Valida y conserva</h3><p>Auditoría sugiere puntos para revisar por orientación y cercanía. Mis cambios muestra los movimientos. Exportar guarda el detalle.</p></div></div><div class="note">Base actual y Mi propuesta se comparan sin borrar ajustes. Guardamos la propuesta y los borradores en este navegador. Ocultar menús deja el mapa libre. INEGI aporta límites; las zonas del fondo no son regiones comerciales ni una regionalización oficial.</div>',
+    modal('Región, tiendas y propuesta.','Tiendas abiertas y aperturas identificadas en el mismo mapa.',
+      '<div class="guide-grid guide-three"><div class="guide-card"><span>01</span><h3>Filtra la región</h3><p>Abre Región o pulsa su color en la leyenda. Verás las tiendas disponibles y desplegarás DM y tiendas en ese mismo apartado.</p></div><div class="guide-card"><span>02</span><h3>Ajusta una tienda</h3><p>Selecciona el pin, elige su región destino y guarda. El pin y los conteos cambian con la propuesta. Las casillas permiten proponer varias juntas.</p></div><div class="guide-card"><span>03</span><h3>Valida y conserva</h3><p>Auditoría sugiere puntos para revisar por orientación y cercanía. Mis cambios muestra los movimientos. Exportar guarda el detalle.</p></div></div><div class="note">Base actual y Mi propuesta se comparan sin borrar ajustes. Guardamos la propuesta y los borradores en este navegador. Ocultar menús deja el mapa libre. INEGI aporta límites; las zonas del fondo no son regiones comerciales ni una regionalización oficial.</div>',
       '<button class="primary" data-action="close-modal">Entendido</button>');
   }
   function showBulk(){
     if(!selected.size)return;
-    const stores=C.current(base,state).filter(s=>C.isOpen(s)&&selected.has(s.cc)),home=stores.filter(s=>s.origin_region===C.REGION).length;
+    const stores=C.current(base,state).filter(s=>C.isPlannable(s)&&selected.has(s.cc)),home=stores.filter(s=>s.origin_region===C.REGION).length;
     modal('Proponer '+selected.size+' tiendas','El destino se aplicará a toda la selección, incluidas las tiendas fuera del filtro.',
       '<div class="bulk-origin">'+home+' de Centro Norte · '+(stores.length-home)+' de otras regiones</div><label class="region-destination">Región interna propuesta<select id="bulkRegion">'+options(C.regions,'','Elige la región destino')+'</select></label><div class="quick-proposals"><button data-action="bulk-home">+ Llevar a Centro Norte</button></div><label>Motivo común (opcional)<textarea id="bulkNotes" maxlength="2000" placeholder="Se agregará a las notas existentes."></textarea></label><details class="assignment-details"><summary>Asignar también DM o zona</summary><div class="form-grid"><label>DM propuesto<select id="bulkDm">'+options(dmsForRegion($('bulkRegion')?.value),'','Por asignar / sin cambio si conserva región')+'</select></label><label>Zona geográfica<select id="bulkZone">'+options(C.zones,'','Sin cambio')+'</select></label></div></details><div class="note">'+stores.slice(0,8).map(s=>e(s.cc+' '+s.store_name)).join(' · ')+(stores.length>8?' · y '+(stores.length-8)+' más':'')+'</div>',
       '<button class="secondary" data-action="close-modal">Volver</button><button class="primary" data-action="apply-bulk">Guardar selección en propuesta</button>',true);
@@ -362,53 +387,42 @@
   }
   function compare(){
     if(selected.size<2){toast('Selecciona al menos dos tiendas para comparar cercanía.');return;}
-    const stores=C.current(base,state).filter(s=>C.isOpen(s)&&C.hasPoint(s)&&selected.has(s.cc));
+    const stores=C.current(base,state).filter(s=>C.isPlannable(s)&&C.hasPoint(s)&&selected.has(s.cc));
     if(stores.length<2){toast('Selecciona al menos dos tiendas con coordenadas para comparar.');return;}
     const pairs=[];for(let i=0;i<stores.length;i++)for(let j=i+1;j<stores.length;j++)pairs.push({a:stores[i],b:stores[j],km:C.distance(stores[i],stores[j])});pairs.sort((a,b)=>a.km-b.km);
     modal('Comparar ubicaciones','Distancias en línea recta de la propuesta, calculadas entre las tiendas seleccionadas.',
       '<div class="comparison-stats"><div><b>'+stores.length+'</b><small>TIENDAS SELECCIONADAS</small></div><div><b>'+number(pairs[0].km)+' km</b><small>PAR MÁS CERCANO</small></div><div><b>'+number(pairs[pairs.length-1].km)+' km</b><small>PAR MÁS LEJANO</small></div></div><div class="table-wrap"><table><thead><tr><th>Ubicación A</th><th>Ubicación B</th><th>Distancia</th></tr></thead><tbody>'+pairs.slice(0,120).map(p=>'<tr><td><button data-action="compare-focus" data-cc="'+p.a.cc+'">'+e(p.a.store_name)+'<small>'+p.a.cc+' · '+e(p.a.dm)+'</small></button></td><td><button data-action="compare-focus" data-cc="'+p.b.cc+'">'+e(p.b.store_name)+'<small>'+p.b.cc+' · '+e(p.b.dm)+'</small></button></td><td>'+number(p.km)+' km</td></tr>').join('')+'</tbody></table></div><div class="note">'+(pairs.length>120?'Se muestran los 120 pares más cercanos de '+pairs.length+'. ':'')+'La cercanía es una referencia geográfica. Para recorridos, revisa vialidades y traslados antes de definir una asignación.</div>',
       '<button class="secondary" data-action="show-selection-map">Ver selección en el mapa</button><button class="primary" data-action="bulk">Evaluar selección</button>');
   }
+  function changedStores(){return C.current(base,state).filter(s=>C.isPlannable(s)&&Object.keys(state.updates[s.cc]||{}).length);}
   function summary(){
-    const counts=C.regionalCounts(base,state),moves=C.current(base,state).filter(s=>C.isOpen(s)&&(s.region!==s.origin_region||s.decision==='No considerar'));
-    const rows=counts.map(r=>'<tr><td><i class="region-dot" style="background:'+C.regionColors[r.region]+'"></i>'+e(r.region)+'</td><td>'+(r.available?r.base:'Pendiente')+'</td><td><b>'+(r.available?r.total:r.total?r.total+' disponibles':'Pendiente')+'</b></td><td>'+(r.delta>0?'+':'')+r.delta+'</td></tr>').join('');
-    modal('Mis cambios','Solo tiendas abiertas. Los conteos incluyen las tiendas disponibles en esta base.',
-      '<div class="table-wrap"><table><thead><tr><th>Región Starbucks</th><th>Base</th><th>Propuesta</th><th>Cambio</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="note">'+moves.length+' movimientos guardados. Centro Norte tiene su base de '+counts.find(r=>r.region===C.REGION).base+' abiertas; las cinco regiones usan el directorio CMS de octubre de 2026.</div>'+(moves.length?'<div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Origen</th><th>Propuesta</th></tr></thead><tbody>'+moves.map(s=>'<tr><td><button data-action="review-focus" data-cc="'+s.cc+'">'+e(s.store_name)+'<small>'+s.cc+'</small></button></td><td>'+e(s.origin_region)+'</td><td>'+e(s.region)+(s.decision==='No considerar'?' · No considerar':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty-proposal">Sin movimientos todavía. Elige una tienda para proponer su región.</div>'),
-      '<button class="secondary" data-action="close-modal">Volver</button><button class="primary" data-action="export-csv">Exportar abiertas a Excel</button>');
+    const counts=C.regionalCounts(base,state),moves=changedStores();
+    const rows=counts.map(r=>'<tr><td><i class="region-dot" style="background:'+C.regionColors[r.region]+'"></i>'+e(r.region)+'</td><td>'+r.base+'</td><td><b>'+r.total+'</b></td><td>'+(r.delta>0?'+':'')+r.delta+'</td><td>'+r.baseOpenings+' → '+r.openings+'</td></tr>').join('');
+    modal('Mis cambios','Abiertas y aperturas se cuentan por separado.',
+      '<div class="table-wrap"><table><thead><tr><th>Región</th><th>Abiertas base</th><th>Abiertas propuesta</th><th>Cambio</th><th>Aperturas base → propuesta</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="hint">'+moves.length+(moves.length===1?' tienda con ajustes guardados.':' tiendas con ajustes guardados.')+'</p>'+(moves.length?'<div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Origen</th><th>Propuesta</th></tr></thead><tbody>'+moves.map(s=>'<tr><td><button data-action="review-focus" data-cc="'+s.cc+'">'+e(s.store_name)+'<small>'+s.cc+' · '+(C.isOpening(s)?'Apertura':'Abierta')+'</small></button></td><td>'+e(s.origin_region)+'</td><td>'+e(s.region)+'<small>'+e(C.dmLabel(s.dm))+'</small>'+(s.decision==='No considerar'?' · No considerar':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty-proposal">Sin ajustes guardados. Selecciona una tienda en el mapa o en Región.</div>'),
+      '<button class="secondary" data-action="close-modal">Volver</button><button class="primary" data-action="export-csv">Exportar tiendas a Excel</button>');
   }
-  function showDirectory(){
-    const opened=base.stores.filter(C.isOpen),teams=new Set(opened.map(s=>s.region+'|'+s.dm));
-    modal('Directorio regional','Región → DM → Tienda · origen del CMS',
-      '<div class="directory-overview"><strong>'+opened.length+'<small>abiertas</small></strong><span>'+C.regions.length+' regiones</span><span>'+teams.size+' grupos DM</span></div><label class="search-box directory-search"><span aria-hidden="true">⌕</span><input id="directorySearch" type="search" placeholder="Busca región, DM, tienda o CeCo" aria-label="Buscar en el directorio"></label><div class="directory-columns"><span>REGIÓN / DM / TIENDA</span><span>ABIERTAS</span></div><div id="directoryTree"></div><p class="hint">La estructura de origen se conserva al proponer cambios. Aperturas y cierres permanecen en el CMS, fuera de esta lista de abiertas.</p>',
-      '<a class="button secondary cms-download" href="cms/Mapa_CentroNorte_CMS.xlsx" download>Descargar CMS Excel ↓</a><button class="primary" data-action="close-modal">Volver al mapa</button>');
-    renderDirectoryTree();$('directorySearch').addEventListener('input',renderDirectoryTree);
-  }
-  function renderDirectoryTree(){
-    const search=$('directorySearch').value.trim(),tree=C.directoryTree(base,search),order=[C.REGION,...C.regions.filter(r=>r!==C.REGION)];
-    tree.sort((a,b)=>order.indexOf(a.region)-order.indexOf(b.region));
-    const body=tree.filter(region=>region.total||!search).map(region=>'<details class="directory-region"'+(search||region.region===C.REGION?' open':'')+'><summary style="--region:'+C.regionColors[region.region]+'"><i class="region-dot"></i><span>'+e(region.region)+'</span><b>'+region.total+'</b></summary><div class="directory-dms">'+region.dms.map(dm=>'<details class="directory-dm"'+(search?' open':'')+'><summary><span>'+e(C.dmLabel(dm.dm))+'</span><b>'+dm.total+'</b></summary><div class="directory-stores">'+dm.stores.map(s=>'<button data-action="directory-focus" data-cc="'+s.cc+'" style="--region:'+C.regionColors[s.region]+'"><span class="directory-store-code">'+s.cc+'</span><span>'+e(s.store_name)+'</span><i aria-hidden="true">↗</i></button>').join('')+'</div></details>').join('')+(region.dms.length?'':'<p class="hint">Sin abiertas disponibles en el CMS.</p>')+'</div></details>').join('');
-    $('directoryTree').innerHTML=body||'<div class="empty-proposal">No hay abiertas con esa búsqueda.</div>';
-  }
+  function showDirectory(){setSidebar(true,true);}
   function showAudit(){
-    const scope=filter.region,items=auditResult.items.filter(s=>!scope||s.region===scope),checked=cachedStores.filter(s=>(!scope||s.region===scope)&&s.decision!=='No considerar').length;
+    const scope=filter.region,items=auditResult.items.filter(s=>!scope||s.region===scope),checked=cachedStores.filter(s=>C.isOpen(s)&&(!scope||s.region===scope)&&s.decision!=='No considerar').length;
     modal('Auditoría orientativa',scope||'Todas las regiones disponibles',
       '<div class="audit-intro"><span class="estimate-label">ESTIMACIÓN · REVISIÓN MANUAL</span><h3>'+items.length+(items.length===1?' tienda para revisar <small>':' tiendas para revisar <small>')+'de '+checked+' abiertas disponibles</small></h3><p>Detecta Centro Norte en zona Sur, aislamiento a más de 20 km de otra tienda de su región, tres vecinas de otra región a menos de 5 km o puntos fuera de la cartografía disponible.</p></div><div class="note">Una zona Sur no hace incorrecta una asignación a Centro Norte. Las distancias son en línea recta y dependen de las tiendas cargadas. La cobertura cartográfica no incluye todos los municipios de Bajío. No se recomienda un cambio automáticamente.</div>'+items.map(s=>'<button class="audit-store" data-action="audit-focus" data-cc="'+s.cc+'"><i class="region-dot" style="background:'+C.regionColors[s.region]+'"></i><span><strong>'+e(s.store_name)+'</strong><small>'+s.cc+' · '+e(s.region)+' · zona '+e(s.zone)+'</small><span>'+s.reasons.map(e).join('<br>')+'</span>'+(s.locationConfirmed?'<small>Coordenada confirmada; revisar únicamente cobertura regional.</small>':'')+'</span><b>Ver ↗</b></button>').join('')+(items.length?'':'<div class="empty-proposal">Sin señales con estas reglas y los datos disponibles. No equivale a una validación completa del territorio.</div>')+'<div class="audit-coverage">'+auditResult.coverage.map(r=>'<span>'+e(r.region)+' <b>'+(r.available?r.available+' disponibles':'Pendiente')+'</b></span>').join('')+'</div>',
       '<button class="primary" data-action="close-modal">Volver al mapa</button>');
   }
   function showExport(){
     modal('Conserva tu propuesta','Guardado automático en este navegador y exportación para respaldo.',
-      '<label>Nombre de la propuesta<input id="scenarioName" maxlength="80" value="'+e(state.name)+'"></label><span id="saveState" class="draft-status">Guardado en este equipo</span><div class="modal-card-grid"><button class="option-card" data-action="export-json"><span>↗</span><strong>Respaldo completo · JSON</strong><p>Conserva todas las decisiones, notas y ajustes, incluidas las aperturas ocultas.</p></button><button class="option-card" data-action="export-csv"><span>▥</span><strong>Tiendas abiertas · Excel CSV</strong><p>Solo abiertas, con región de origen y propuesta, DM, notas y coordenadas.</p></button></div><div class="note">Los borradores se guardan por separado en este navegador; aplica Guardar en cada ficha para incluirlos en la propuesta exportada.</div>',
+      '<label>Nombre de la propuesta<input id="scenarioName" maxlength="80" value="'+e(state.name)+'"></label><span id="saveState" class="draft-status">Guardado en este equipo</span><div class="modal-card-grid"><button class="option-card" data-action="export-json"><span>↗</span><strong>Respaldo completo · JSON</strong><p>Conserva todas las decisiones, notas y ajustes, incluidas las aperturas.</p></button><button class="option-card" data-action="export-csv"><span>▥</span><strong>Tiendas y aperturas · Excel CSV</strong><p>Abiertas y aperturas diferenciadas, con origen, destino, DM, notas y coordenadas.</p></button></div><div class="note">Los borradores se guardan por separado en este navegador; aplica Guardar en cada ficha para incluirlos en la propuesta exportada.</div>',
       '<button class="primary" data-action="close-modal">Volver</button>');
     $('scenarioName').addEventListener('input',()=>{state.name=$('scenarioName').value.trim()||'Propuesta Centro Norte';persist();});
   }
   function download(content,type,filename){const url=URL.createObjectURL(new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
   function filename(suffix){const date=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Mexico_City'});return 'CentroNorte_'+state.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,50)+'_'+date+suffix;}
   function exportJson(){download(JSON.stringify(C.pack(base,state),null,2),'application/json',filename('.json'));toast('Escenario exportado con su base y todos los ajustes.');}
-  function exportCsv(){download(C.csv(base,state,{openOnly:true}),'text/csv;charset=utf-8',filename('_abiertas.csv'));toast('Tabla de decisiones exportada para Excel.');}
+  function exportCsv(){download(C.csv(base,state,{planningOnly:true}),'text/csv;charset=utf-8',filename('_tiendas_y_aperturas.csv'));toast('Tabla de decisiones exportada para Excel.');}
   function sources(){
     const baseline=C.regionalCounts(base,C.freshState(),'base'),openCount=base.stores.filter(C.isOpen).length,openingCount=base.stores.filter(s=>s.status==='Apertura').length,closedCount=base.stores.filter(s=>s.status==='Cerrada').length;
     modal('Origen de la información','Cartografía y regiones Starbucks se mantienen independientes.',
-      '<div class="source-list"><div><strong>Fondo geográfico</strong><p>Límites municipales y de alcaldías del Marco Geoestadístico INEGI, diciembre de 2025, ya incluidos en el proyecto. Centro, Norte, Poniente, Sur y Oriente son grupos de referencia por orientación, no una regionalización oficial.</p></div><div><strong>Tiendas abiertas</strong><p>'+baseline.filter(r=>r.available).map(r=>e(r.region)+': '+r.base+' disponibles').join('. ')+'. David Carrasco pertenece a Bajío y Mónica Morales a Centro Sur. Las aperturas no participan en mapa, conteos ni auditoría.</p></div><div><strong>Un solo directorio</strong><p>El CMS integra los puntos recibidos, Ops y el directorio Alsea por CeCo. Conserva las cinco regiones: '+openCount+' abiertas, '+openingCount+' aperturas y '+closedCount+' cierres. Los cierres temporales de Ops se mantienen fuera del mapa. No es un total nacional.</p></div><div><strong>Validación</strong><p>Base validada acredita consistencia de datos. Auditoría utiliza reglas espaciales orientativas sobre tiendas disponibles y requiere revisión humana. No valida la organización oficial de Starbucks.</p></div><div><strong>Continuidad</strong><p>Propuesta y borradores guardados en este navegador. Mis cambios y el CSV muestran solo abiertas; el JSON conserva la propuesta completa. Toreo Walmart conserva su coordenada confirmada.</p></div></div>',
+      '<div class="source-list"><div><strong>Fondo geográfico</strong><p>Límites municipales y de alcaldías del Marco Geoestadístico INEGI, diciembre de 2025, ya incluidos en el proyecto. Centro, Norte, Poniente, Sur y Oriente son grupos de referencia por orientación, no una regionalización oficial.</p></div><div><strong>Tiendas abiertas</strong><p>'+baseline.filter(r=>r.available).map(r=>e(r.region)+': '+r.base+' disponibles').join('. ')+'. David Carrasco pertenece a Bajío y Mónica Morales a Centro Sur. Las aperturas se muestran con un símbolo + y se cuentan aparte de las abiertas. La auditoría regional usa abiertas.</p></div><div><strong>Un solo directorio</strong><p>El CMS integra los puntos recibidos, Ops y el directorio Alsea por CeCo. Conserva las cinco regiones: '+openCount+' abiertas, '+openingCount+' aperturas y '+closedCount+' cierres. Los cierres temporales de Ops se mantienen fuera del mapa. No es un total nacional.</p></div><div><strong>Validación</strong><p>Base validada acredita consistencia de datos. Auditoría utiliza reglas espaciales orientativas sobre tiendas disponibles y requiere revisión humana. No valida la organización oficial de Starbucks.</p></div><div><strong>Continuidad</strong><p>Propuesta y borradores guardados en este navegador. Mis cambios y el CSV incluyen abiertas y aperturas; el JSON conserva la propuesta completa. Toreo Walmart conserva su coordenada confirmada.</p></div></div>',
       '<button class="primary" data-action="close-modal">Volver</button>');
   }
   function resetStore(cc){if(drafts[cc]){delete drafts[cc];saveDrafts();$('storeForm')?.remove();}if(!state.updates[cc]){render();toast('Esta tienda conserva los datos de base.');return;}transact(()=>{delete state.updates[cc];moving=false;},'Evaluación de la tienda restablecida a la base.');}
@@ -426,7 +440,7 @@
       const cc=action.dataset.cc;
       switch(action.dataset.action){
         case 'focus':focusStore(cc);break;
-        case 'review-focus':$('modal').close();view='proposal';clearFilters();focusStore(cc);break;
+        case 'review-focus':$('modal').close();includeOpenings=true;clearFilters();focusStore(cc);break;
         case 'choose-home':$('storeRegion').value=C.REGION;populateStoreDms(C.REGION,$('storeDm').value);updateDraftMessage(base.stores.find(s=>s.cc===focus));break;
         case 'choose-away':$('storeRegion').focus();document.querySelector('.proposal-message').textContent='Elige la región que recibiría esta tienda y guarda tu propuesta.';try{if($('storeRegion').showPicker)$('storeRegion').showPicker();}catch(error){}break;
         case 'bulk-home':$('bulkRegion').value=C.REGION;populateBulkDms();break;
@@ -441,8 +455,10 @@
         case 'filter-dm':filter.dm=filter.dm===action.dataset.dm?'':action.dataset.dm;render();fitVisible();break;
         case 'filter-region':chooseRegion(action.dataset.region);break;
         case 'all-regions':chooseRegion('');break;
-        case 'directory-focus':$('modal').close();view='base';clearFilters();focusStore(cc);break;
-        case 'directory-toggle':document.querySelectorAll('.directory-region').forEach(d=>d.open=true);break;
+        case 'directory-return':setSidebar(true);break;
+        case 'clear-dm':filter.dm='';render();fitVisible();break;
+        case 'filter-team':filter.region=action.dataset.region;filter.dm=action.dataset.dm;render();fitVisible();break;
+        case 'select-team':visible.filter(s=>s.region===action.dataset.region&&s.dm===action.dataset.dm).forEach(s=>selected.add(s.cc));render();break;
         case 'audit-focus':$('modal').close();clearFilters();focusStore(cc);break;
         case 'near-focus':case 'compare-focus':if($('modal').open)$('modal').close();if(!visible.some(s=>s.cc===cc)){clearFilters();}focusStore(cc);break;
         case 'close-inspector':closeInspector();break;
@@ -468,12 +484,12 @@
     const input=event.target;
     if(input.dataset.select){toggleSelected(input.dataset.select);}
   });
-  function clearFilters(){Object.keys(filter).forEach(k=>filter[k]='');filter.scope='all';filter.status='Actual';$('search').value='';render();}
+  function clearFilters(){Object.keys(filter).forEach(k=>filter[k]='');filter.scope='all';filter.status='';$('search').value='';render();}
   function chooseRegion(region){filter.region=region;filter.dm='';filter.search='';$('search').value='';render();fitVisible();}
   $('search').addEventListener('input',ev=>{filter.search=ev.target.value;render();});
-  for(const [id,key] of [['dmFilter','dm'],['zoneFilter','zone'],['decisionFilter','decision']])$(id).addEventListener('change',event=>{filter[key]=event.target.value;render();fitVisible();});
+  for(const [id,key] of [['zoneFilter','zone'],['decisionFilter','decision']])$(id).addEventListener('change',event=>{filter[key]=event.target.value;render();fitVisible();});
   $('regionFilter').addEventListener('change',event=>chooseRegion(event.target.value));
-  $('sortSelect').addEventListener('change',renderList);
+
   $('clearFilters').addEventListener('click',()=>{clearFilters();fitVisible();});
   $('selectVisible').addEventListener('change',event=>{visible.forEach(s=>event.target.checked?selected.add(s.cc):selected.delete(s.cc));render();});
   $('backgroundBtn').addEventListener('click',openBackground);
@@ -484,7 +500,7 @@
   $('closeListBtn').addEventListener('click',()=>setSidebar(false));
   $('menusToggle').addEventListener('click',()=>setMenusVisible(!menusVisible));
   $('auditBtn').addEventListener('click',showAudit);
-  $('directoryBtn').addEventListener('click',showDirectory);
+
   document.querySelector('.skip-link').addEventListener('click',()=>setSidebar(true,true));
   $('dismissSteps').addEventListener('click',()=>$('mapSteps').classList.add('hidden'));
   document.addEventListener('keydown',event=>{
@@ -493,5 +509,18 @@
     if(!typing&&event.key==='/'&&!$('modal').open){event.preventDefault();setSidebar(true,true);}
     if(!typing&&(event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();undo();}
   });
+  $('includeOpenings').addEventListener('change',event=>{includeOpenings=event.target.checked;render();});
+  $('fitDirectory').addEventListener('click',fitVisible);
+  $('validateDirectory').addEventListener('click',reviewData);
+  $('expandDms').addEventListener('click',()=>{
+    const teams=[...$('storeList').querySelectorAll('.directory-team')],open=!teams.every(d=>d.open);
+    teams.forEach(d=>{d.open=open;if(open)expandedDms.add(d.dataset.team);else expandedDms.delete(d.dataset.team);});
+    $('expandDms').textContent=open?'Contraer DM':'Desplegar DM';
+  });
+  $('storeList').addEventListener('toggle',event=>{
+    const d=event.target;if(!d.matches('.directory-team')||!d.isConnected||filter.search)return;
+    if(d.open)expandedDms.add(d.dataset.team);else expandedDms.delete(d.dataset.team);
+    $('expandDms').textContent=[...$('storeList').querySelectorAll('.directory-team')].every(x=>x.open)?'Contraer DM':'Desplegar DM';
+  },true);
   syncMenus();render();fitVisible();if(document.body.dataset.openDirectory)showDirectory();if(scenarioNotice){persist();toast(scenarioNotice);}
 })();

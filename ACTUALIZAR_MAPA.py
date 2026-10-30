@@ -226,8 +226,11 @@ def prepare(root):
     if any('Estatus' in row for _,row in rows):
         pairs=catalog_pairs(root/'cms/Mapa_CentroNorte_CMS.xlsx')
         validate_pairs(stores,pairs)
+    from cms_service import read_metrics
+    metrics=read_metrics(root/'cms/Mapa_CentroNorte_CMS.xlsx',{s['cc'] for s in stores})
+    for store in stores:store.update(metrics.get(store['cc'],{}))
     signature=digest(stores);stamp=datetime.now(timezone.utc).isoformat(timespec='seconds')
-    metadata={'version':'4.4.0','signature':signature,'region':REGION,'regional_rules':rules,'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'validated_at':stamp,'source_repo':'sbx-mex/Mapa_CentroNorte','geography_signature':digest(geo),'source_workbook_sha256':hashlib.sha256((root/'cms/Mapa_CentroNorte_CMS.xlsx').read_bytes()).hexdigest()}
+    metadata={'version':'4.5.0','signature':signature,'region':REGION,'regional_rules':rules,'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'validated_at':stamp,'source_repo':'sbx-mex/Mapa_CentroNorte','geography_signature':digest(geo),'source_workbook_sha256':hashlib.sha256((root/'cms/Mapa_CentroNorte_CMS.xlsx').read_bytes()).hexdigest()}
     if any('Estatus' in row for _,row in rows):
         catalog,_=read_sheet(root/'cms/Mapa_CentroNorte_CMS.xlsx','Catalogos')
         metadata['dm_labels']={clean(r.get('DM')):clean(r.get('Mostrar como')) for _,r in catalog if clean(r.get('DM')) and clean(r.get('Mostrar como'))}

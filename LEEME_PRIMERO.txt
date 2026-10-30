@@ -1,41 +1,15 @@
-CENTRO NORTE · CMS INTEGRADO 4.4.0
+DIRECTORIO INTEGRADO EN REGIÓN
 
-UN SOLO EXCEL: cms/Mapa_CentroNorte_CMS.xlsx
-Región > DM > Tienda. El mapa y directorio leen la misma base.
+Esta rama integra el código y conserva el CMS y los datos vigentes de main 4.4.
+La actualización de indicadores de septiembre se incorporará por separado.
 
-INSTALAR SOBRE 4.3 (794488d):
-Extrae el ZIP y copia su contenido a la raíz del proyecto existente.
-Respeta las carpetas y reemplaza archivos coincidentes.
-Incluye .github/workflows/ci.yml al subirlos a GitHub.
-Conserva los demás archivos del proyecto. No subas el ZIP sin extraer.
+Región > DM > Tienda. Busca por CeCo o nombre, despliega un DM y ubica su tienda.
+Centro Norte: 73 abiertas + 3 aperturas identificadas con un pin +.
+Validar datos se encuentra dentro de Región. Se conservan propuestas y borradores.
 
-UNA SOLA CONFIGURACIÓN EN GITHUB:
-Settings > Pages > Build and deployment > Source: GitHub Actions.
-Después, reemplazar el mismo Excel CMS genera y publica la versión validada.
-Ya no es necesario editar JavaScript para incorporar tiendas o DM.
-El ZIP no modifica esa configuración por sí mismo.
+Actualizar vistas desde el CMS:
+  python ACTUALIZAR_MAPA.py --no-open
+  python ACTUALIZAR_MAPA.py --check
 
-LOCAL:
-python ACTUALIZAR_MAPA.py --no-open
-
-EXCEL:
-Ubicaciones: Región, DM, Tienda, Estatus, fechas y coordenadas.
-Catalogos: DM válidos por región, nombre completo y Mostrar como.
-Inicio: conteos conectados. Validacion: errores para revisar.
-Indicadores: se conservan los datos originales; son opcionales para el mapa.
-Al agregar un DM, inserta su fila junto a los de su región en Catalogos.
-
-MAPA:
-Directorio despliega regiones, DM y tiendas abiertas.
-Región permite filtrar y ver el span. Cada pin usa su región Starbucks.
-Una propuesta cambia el destino y conteos; conserva el origen del CMS.
-Solo ofrece DM de destino o Por asignar.
-
-455 ABIERTAS: CN 73, CS 100, CP 100, CC 86, Bajío 96.
-482 REGISTROS: 455 abiertas + 5 aperturas + 8 cierres temporales + 14 definitivos.
-Los 8 temporales tienen diferencia con Alsea: se conserva el estatus Ops.
-Toreo Walmart conserva la coordenada confirmada y el estatus de apertura.
-
-Se conservan los ajustes y borradores del mismo navegador/sitio.
-Exporta antes de borrar datos del navegador.
-25 pruebas Python y 41 JavaScript; la ejecución remota se confirma al cargar.
+31 pruebas Python y 43 JavaScript. Los PR validan sin publicar.
+La publicación automatizada requiere Pages > Source > GitHub Actions.
