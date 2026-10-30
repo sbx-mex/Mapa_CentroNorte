@@ -7,8 +7,25 @@
   'use strict';
   const decisions = ['Por evaluar', 'Conservar', 'Tomar', 'Ceder', 'Reasignar', 'No considerar'];
   const REGION=rules.home_region, regions=rules.regions;
-  const zones = ['Norte', 'Poniente', 'Centro', 'Oriente', 'Sur'];
+  const zones = ['Centro', 'Norte', 'Poniente', 'Sur', 'Oriente'];
   const zoneColors = {Norte:'#38859a', Poniente:'#768c56', Centro:'#00704a', Oriente:'#d39236', Sur:'#a05279'};
+  // Esta capa usa límites municipales. Sus zonas por orientación son independientes
+  // de las regiones comerciales y de los colores de los pines.
+  function mapZone(properties,areas={}) {
+    const assigned=areas[properties.id],original=properties.zone||properties.region;
+    if(zones.includes(assigned))return assigned;
+    if(zones.includes(original))return original;
+    throw new Error('Zona geográfica desconocida.');
+  }
+  function cartographicStyle(properties,areas={},settings={}) {
+    const visible=settings.visible!==false,selected=properties.id===settings.selectedId;
+    const intensity=Number.isFinite(settings.opacity)?Math.min(.55,Math.max(.05,settings.opacity)):.27;
+    return {color:selected?'#244b3a':'#ffffff',weight:selected?2.3:.85,fillColor:zoneColors[mapZone(properties,areas)],fillOpacity:visible?intensity:0,opacity:visible?.88:.2};
+  }
+  function setMapZone(state,id,zone) {
+    if(!id||!zones.includes(zone))throw new Error('Asignación cartográfica inválida.');
+    state.areas[id]=zone;
+  }
   const dmColors = {'Enrique César':'#00754a','Nancy Rodríguez':'#2475bf','Vanessa Carreño':'#8654b8','Veronica García':'#bd6c21','Yazmin Chabela':'#c14f61','Yazmin García':'#8a6a43','David Carrasco':'#158594','Moni Morales':'#a548a2'};
   const palette = ['#3f66aa','#b46831','#4b8a50','#9554a5','#3c8f88','#b63c60'];
   const clean = value => String(value == null ? '' : value).trim();
@@ -185,5 +202,5 @@
     const rows=current(base,state).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude];});
     return '\uFEFF'+[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
   }
-  return {REGION,decisions,regions,rules,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
+  return {REGION,decisions,regions,rules,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
 });

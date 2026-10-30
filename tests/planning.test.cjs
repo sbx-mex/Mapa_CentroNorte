@@ -100,3 +100,32 @@ test('CSV exporta las regiones y movimientos reales de cada tienda',()=>{
 test('Toreo Walmart conserva su coordenada confirmada y no genera aviso pendiente',()=>{
  const store=base.stores.find(s=>s.cc==='43302');assert.equal(store.latitude,19.4506098125196);assert.equal(store.longitude,-99.2180774805589);assert.ok(store.location_verification);assert.ok(!health.warnings.some(w=>w.cc===store.cc));
 });
+
+test('el fondo municipal muestra cinco colores geográficos aunque todos los pines sean verdes',()=>{
+ const features=geo.municipalities.features,colors=new Set(features.map(f=>C.cartographicStyle(f.properties).fillColor));
+ assert.deepEqual(C.zones,['Centro','Norte','Poniente','Sur','Oriente']);assert.equal(colors.size,5);
+ for(const f of features)assert.equal(C.cartographicStyle(f.properties).fillColor,C.zoneColors[C.mapZone(f.properties)]);
+});
+test('cambiar regiones Starbucks y colores DM no cambia la capa cartográfica',()=>{
+ const state=C.freshState(),before=geo.municipalities.features.map(f=>C.cartographicStyle(f.properties,state.areas,{opacity:.27}));
+ state.updates[home.cc]={...C.proposalUpdate(home,'Centro Sur'),dm:'David Carrasco'};state.dmColors['David Carrasco']='#ff0000';
+ const after=geo.municipalities.features.map(f=>C.cartographicStyle(f.properties,state.areas,{opacity:.27,colorMode:'dm',view:'base',region:'Centro Sur'}));
+ assert.deepEqual(after,before);assert.equal(C.current(base,state).find(s=>s.cc===home.cc).region,'Centro Sur');
+});
+test('pintar un municipio afecta solo al fondo y conserva tiendas, CSV y balance',()=>{
+ const state=C.freshState(),f=geo.municipalities.features[0],beforeStores=clone(C.current(base,state)),beforeBalance=clone(C.balance(base,state)),beforeCsv=C.csv(base,state),beforeGeo=JSON.stringify(geo);
+ const original=C.mapZone(f.properties),target=C.zones.find(zone=>zone!==original);
+ C.setMapZone(state,f.properties.id,target);
+ assert.equal(C.cartographicStyle(f.properties,state.areas).fillColor,C.zoneColors[target]);assert.equal(C.mapZone(f.properties),original);
+ assert.deepEqual(C.current(base,state),beforeStores);assert.deepEqual(C.balance(base,state),beforeBalance);assert.equal(C.csv(base,state),beforeCsv);assert.equal(JSON.stringify(geo),beforeGeo);
+});
+test('ocultar el fondo controla únicamente su transparencia y rechaza zonas internas como geográficas',()=>{
+ const f=geo.municipalities.features[0],on=C.cartographicStyle(f.properties,{}, {visible:true,opacity:.27}),off=C.cartographicStyle(f.properties,{}, {visible:false,opacity:.27});
+ assert.equal(on.fillOpacity,.27);assert.equal(off.fillOpacity,0);assert.equal(off.fillColor,on.fillColor);
+ assert.throws(()=>C.setMapZone(C.freshState(),f.properties.id,'Centro Norte'),/cartográfica/);assert.throws(()=>C.setMapZone(C.freshState(),f.properties.id,'Bajío'),/cartográfica/);
+});
+test('la copia recupera ajustes cartográficos y regiones internas sin cruzar asignaciones',()=>{
+ const state=C.freshState(),f=geo.municipalities.features[0];C.setMapZone(state,f.properties.id,'Oriente');state.updates[home.cc]=C.proposalUpdate(home,'Centro Poniente');
+ const restored=C.readScenario(clone(C.pack(base,state)),base,geo).state;
+ assert.equal(C.mapZone(f.properties,restored.areas),'Oriente');assert.equal(C.current(base,restored).find(s=>s.cc===home.cc).region,'Centro Poniente');assert.equal(C.current(base,restored,'base').find(s=>s.cc===home.cc).region,home.region);
+});

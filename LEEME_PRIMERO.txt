@@ -1,28 +1,27 @@
-CENTRO NORTE · MEJORA REGIONAL 4.0
+CENTRO NORTE · FONDO GEOGRÁFICO 4.1
 
-APLICAR
+Aplicar sobre la mejora regional 4.0 ya instalada.
+
 1. Extrae el ZIP.
 2. Copia su CONTENIDO en la raíz del proyecto Mapa_CentroNorte existente.
 3. Conserva las carpetas y reemplaza los archivos coincidentes.
-4. Sube el contenido a GitHub, incluyendo .github/workflows/ci.yml.
-5. Espera la validación y publicación de Pages. Comprueba Base validada.
+4. Sube los archivos extraídos a GitHub y espera validación y publicación.
 
-El ZIP es incremental: conserva cms/, las librerías y la cartografía existentes.
-No subas únicamente el ZIP ni lo publiques dentro de otra subcarpeta.
+CAMBIO
+El fondo tiene cinco zonas de referencia: Centro, Norte, Poniente, Sur y Oriente.
+Los límites municipales son de INEGI; la agrupación por orientación es una
+referencia ajustable, no una regionalización oficial de INEGI.
 
-BASE CORRECTA
-Centro Norte: 73 tiendas actuales + 3 aperturas = 76 ubicaciones.
-Opciones: David Carrasco, Bajío (14); Mónica Morales, Centro Sur (13).
-Toreo Walmart (43302): ubicación confirmada; conserva su coordenada original.
+Los colores se aplican únicamente al fondo. Mostrar/Ocultar DM modifica los
+pines. Las regiones internas Starbucks se conservan para tomar o ceder tiendas.
 
-USAR
-Selecciona una tienda. Elige Región propuesta. Guarda.
-Para tomar una externa: elige Centro Norte.
-Para ceder una propia: elige otra región.
-Mostrar DM / Ocultar DM activa o apaga los colores por responsable.
-Las casillas y el botón de área permiten proponer varias tiendas juntas.
-Revisar propuesta muestra el balance completo; Exportar descarga el detalle.
+Fondo geográfico permite controlar intensidad, nombres y zona del municipio.
+Pintar solo este fondo no cambia tiendas, DM, regiones internas ni balance.
+Ver territorio completo encuadra las cinco zonas; Centrar tiendas visibles
+regresa a las tiendas.
 
-La entrega incluye 45 pruebas automatizadas y revisión de la navegación.
-El resultado de GitHub Actions se confirma después de subir la mejora.
-Ver README.md para las instrucciones completas.
+El ZIP incluye únicamente archivos nuevos o modificados. Conserva Excel,
+bases, librerías y cartografía. No necesitas ejecutar Python para aplicarlo.
+
+Validación: 20 pruebas Python + 30 JavaScript y revisión en navegador.
+La ejecución en GitHub Actions se confirma al terminar la carga.

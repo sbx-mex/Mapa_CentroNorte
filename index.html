@@ -11,14 +11,14 @@
   <link rel="stylesheet" href="static/vendor/MarkerCluster.css">
   <link rel="stylesheet" href="static/planning/planning.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/quality.css?v=4.0.0">
-  <link rel="stylesheet" href="static/planning/regional.css?v=4.0.0">
+  <link rel="stylesheet" href="static/planning/regional.css?v=4.1.0">
   <script defer src="static/vendor/leaflet.js"></script>
   <script defer src="static/vendor/leaflet.markercluster.js"></script>
   <script defer src="static/planning/geography.js"></script>
   <script defer src="static/planning/base.js?v=eff554032ac83600f0fa"></script>
   <script defer src="static/planning/insights.js?v=eff554032ac83600f0fa"></script>
-  <script defer src="static/planning/core.js?v=4.0.0"></script>
-  <script defer src="static/planning/app.js?v=4.0.0"></script>
+  <script defer src="static/planning/core.js?v=4.1.0"></script>
+  <script defer src="static/planning/app.js?v=4.1.0"></script>
 </head>
 <body class="regional-view">
   <a class="skip-link" href="#search">Ir al listado de tiendas</a>
@@ -39,7 +39,7 @@
       <button class="quality-card" id="qualityCard" aria-label="Ver revisión de la información"></button>
       <div class="filters">
         <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar tienda, CeCo o municipio" autocomplete="off" aria-label="Buscar CeCo, tienda, DM o municipio"><span class="key">/</span></label>
-        <div class="origin-filter"><label>Región de origen<select id="regionFilter"><option value="">Todas las regiones</option></select></label></div>
+        <div class="origin-filter"><label>Región interna de origen<select id="regionFilter"><option value="">Todas las regiones internas</option></select></label></div>
         <details class="more-filters"><summary>Más filtros <span aria-hidden="true">+</span></summary><div class="filter-grid"><label class="dm-only">Responsable DM<select id="dmFilter"><option value="">Todos los DM</option></select></label><label>Zona geográfica<select id="zoneFilter"><option value="">Todas las zonas</option></select></label><label>Tiendas<select id="statusFilter"><option value="">Actuales + aperturas</option><option>Actual</option><option>Apertura</option></select></label><label>Evaluación<select id="decisionFilter"><option value="">Todas las decisiones</option></select></label></div></details>
         <div class="filter-actions"><span id="filterCount"></span><button id="clearFilters" class="link-button">Limpiar filtros</button></div>
       </div>
@@ -49,20 +49,20 @@
       <div class="sidebar-footer"><button id="teamBtn" class="quiet dm-only">DM y colores</button><div id="completionMeter" class="completion-meter"></div></div>
     </aside>
     <section class="map-workspace" aria-label="Mapa interactivo de propuesta regional">
-      <div id="map" role="region" aria-label="Tiendas de Centro Norte y opciones de otras regiones"></div>
-      <div class="map-heading"><div><span class="eyebrow">UN MAPA · TU SIGUIENTE ESTRUCTURA</span><h2>Centro Norte, como la propones.</h2></div><span class="region-pill" id="viewLabel">VISTA PROPUESTA</span></div>
+      <div id="map" role="region" aria-label="Fondo de zonas geográficas y tiendas con regiones internas independientes"></div>
+      <div class="map-heading"><div><span class="eyebrow">FONDO GEOGRÁFICO · PROPUESTA INTERNA</span><h2>Centro Norte, como la propones.</h2></div><span class="region-pill" id="viewLabel">VISTA PROPUESTA</span></div>
       <div class="regional-balance" id="regionalBalance" aria-label="Balance de la propuesta" aria-live="polite"></div>
       <div class="map-topbar">
         <button class="mobile-list secondary" id="mobileListBtn">☰ Tiendas</button>
         <div class="map-control-group"><div class="segmented" aria-label="Comparar base y propuesta"><button data-view="base" aria-pressed="false">Base actual</button><button data-view="proposal" class="active" aria-pressed="true">Mi propuesta</button></div></div>
         <button id="dmToggle" class="map-action dm-toggle" aria-pressed="false"><span class="toggle-track" aria-hidden="true"></span><span id="dmToggleText">Mostrar DM</span></button>
-        <button id="backgroundBtn" class="map-action" aria-pressed="false">Zonas del mapa</button>
-        <span class="view-helper" id="viewHelper">Un solo verde para tu región</span>
+        <button id="backgroundBtn" class="map-action" aria-pressed="false">Fondo geográfico</button>
+        <span class="view-helper" id="viewHelper">Pines verdes · fondo por zonas</span>
       </div>
       <div class="map-tools"><button id="fitBtn" title="Ver todas las tiendas filtradas" aria-label="Centrar tiendas visibles">⌖</button><button id="areaBtn" title="Seleccionar tiendas en un área" aria-label="Seleccionar tiendas en un área">▣</button><button id="undoBtn" title="Deshacer último cambio" aria-label="Deshacer último cambio" disabled>↶</button></div>
       <div class="map-status" id="mapStatus"><span class="live-dot"></span><span>Selecciona un pin para proponer su región</span></div>
       <div class="legend" id="legend"></div>
-      <div class="map-context"><span id="tileStatus">Cartografía local lista · calles al conectar</span><button id="sourcesBtn">Mapa INEGI · referencias geográficas ⓘ</button></div>
+      <div class="map-context"><span id="tileStatus">Cartografía local lista · calles al conectar</span><button id="sourcesBtn">Límites INEGI · zonas por orientación ⓘ</button></div>
       <aside class="inspector hidden" id="inspector" aria-label="Proponer tienda en el mapa"></aside>
       <div class="selection-dock hidden" id="selectionDock"></div>
       <div class="map-steps" id="mapSteps"><span><b>01</b> Elige una tienda</span><span><b>02</b> Toma o cede</span><span><b>03</b> Revisa el balance</span><button id="dismissSteps" aria-label="Ocultar guía rápida">×</button></div>

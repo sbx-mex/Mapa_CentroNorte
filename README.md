@@ -1,4 +1,4 @@
-# Centro Norte · Mesa de propuesta regional 4.0
+# Centro Norte · Mesa de propuesta regional 4.1
 
 Herramienta para que el Regional conserve, tome y ceda tiendas en un solo mapa. La región de origen se mantiene como referencia; cada cambio se guarda como propuesta.
 
@@ -13,14 +13,14 @@ Centro Centro y Centro Poniente están disponibles como destinos. Sus cifras rep
 
 ## Aplicar el ZIP de mejora
 
-Es una actualización incremental de `sbx-mex/Mapa_CentroNorte`, base `e9c127a`. Contiene únicamente archivos nuevos o modificados.
+Es una actualización incremental sobre la versión 4.0 de `sbx-mex/Mapa_CentroNorte`, base `f244ad0`. Contiene únicamente archivos nuevos o modificados.
 
 1. Extrae el ZIP y copia su contenido en la **raíz del proyecto existente**, conservando las carpetas y reemplazando los archivos coincidentes.
 2. Conserva el Excel de `cms/`, `static/planning/geography.js`, las librerías de `static/vendor/` y los demás archivos del proyecto.
-3. Sube el contenido extraído a GitHub, incluida `.github/workflows/ci.yml`. No subas el ZIP como un archivo del sitio ni lo dejes dentro de una subcarpeta.
+3. Sube el contenido extraído a GitHub. Conserva el workflow `.github/workflows/ci.yml` que ya tiene el proyecto. No subas el ZIP como un archivo del sitio ni lo dejes dentro de una subcarpeta.
 4. Espera la ejecución de **Validación de propuesta regional** y la publicación de GitHub Pages. Abre el mapa y comprueba que diga **Base validada** y **73 actuales + 3 aperturas**.
 
-La base y su revisión ya están regeneradas. No es necesario ejecutar Python para aplicar esta entrega sobre la versión indicada. El estado de la nueva ejecución en GitHub se confirma al terminar esa carga; las verificaciones locales se describen en `AUDITORIA_4_0.md`.
+La base y su revisión de la versión 4.0 se conservan sin cambios. No es necesario ejecutar Python para aplicar esta entrega sobre la versión indicada. El estado de la nueva ejecución en GitHub se confirma al terminar esa carga; las verificaciones locales se describen en `AUDITORIA_4_1.md`.
 
 ## Proponer con el mapa
 
@@ -29,7 +29,7 @@ La base y su revisión ya están regeneradas. No es necesario ejecutar Python pa
 - **Ceder:** elige Centro Sur, Bajío, Centro Centro o Centro Poniente como destino de una tienda propia.
 - **Conservar:** deja Centro Norte para una tienda propia. Guarda para marcarla como revisada.
 - **Guardar en la propuesta:** confirma la decisión y actualiza el balance completo, aunque tengas filtros activos.
-- **Mostrar DM / Ocultar DM:** enciende o apaga los colores por responsable. La vista inicial usa un solo verde; las opciones externas son huecas, las entradas llevan + y las salidas ↗.
+- **Mostrar DM / Ocultar DM:** enciende o apaga los colores por responsable. Los pines iniciales usan un solo verde; las opciones externas son huecas, las entradas llevan + y las salidas ↗. El fondo mantiene sus cinco colores geográficos.
 - **Base actual / Mi propuesta:** compara las dos estructuras. Cambiar de vista no borra decisiones.
 - **Casillas o selección por área:** reúne tiendas y usa Proponer selección para asignarles un destino común.
 - **Todas / Mi región / Opciones / Cambios:** muestra todo, la región propuesta, los orígenes externos o los movimientos.
@@ -74,6 +74,23 @@ python -m unittest discover -s tests -v
 node --test tests/planning.test.cjs
 ```
 
-20 pruebas Python y 25 pruebas JavaScript. La navegación, el guardado, el balance, tomar, ceder, selección múltiple, deshacer, la vista DM y Toreo se revisaron en navegador.
+20 pruebas Python y 30 pruebas JavaScript. La navegación, el guardado, el balance, tomar, ceder, selección múltiple, deshacer, la vista DM y Toreo se revisaron en navegador.
 
 El mapa base de calles de INEGI requiere conexión; el fondo municipal y los pines son locales. Las distancias son en línea recta y no representan tiempos ni rutas de traslado.
+
+## Fondo cartográfico 4.1
+
+El fondo tiene cinco colores permanentes: **Centro, Norte, Poniente, Sur y Oriente**. Esta capa es independiente de las regiones internas de Starbucks y de Mostrar/Ocultar DM. Al ocultar DM, los pines quedan verdes y el fondo mantiene sus colores por zona.
+
+Los polígonos corresponden a los límites municipales y de alcaldías INEGI que ya contiene el proyecto (225 áreas de CDMX, Estado de México e Hidalgo). Las cinco zonas son una **agrupación de referencia por orientación**, ajustable por municipio; no son una regionalización oficial de INEGI. Se conserva la geometría original.
+
+- **Fondo geográfico:** muestra u oculta los colores, regula su intensidad y controla nombres de zonas o municipios.
+- **Pintar solo este fondo:** cambia únicamente la zona de ese municipio. No cambia CeCo, DM, región interna, evaluación, coordenadas ni balance.
+- **Ver territorio completo:** encuadra el fondo completo para identificar las cinco zonas. El control Centrar tiendas visibles vuelve al encuadre de tiendas.
+- **Leyenda:** distingue Tiendas · Starbucks de Fondo · Zonas geográficas.
+
+Los ajustes del fondo se conservan al alternar Base actual / Mi propuesta o Mostrar / Ocultar DM. Se siguen guardando dentro de la copia del escenario, de forma independiente de las propuestas por tienda.
+
+El ZIP **Mapa_CentroNorte_Fondo_Geografico_4_1_0.zip** contiene solo los cambios sobre la versión 4.0 del repositorio, commit `f244ad0`. Extrae su contenido en la raíz del proyecto existente y reemplaza los archivos coincidentes. Conserva Excel, bases, cartografía y librerías existentes; no hay que regenerar datos para este ajuste.
+
+Validación de esta entrega: 20 pruebas Python y 30 JavaScript, incluidas cinco sobre la independencia de la cartografía y las regiones internas. GitHub Actions las ejecuta con el workflow existente al subir los archivos.

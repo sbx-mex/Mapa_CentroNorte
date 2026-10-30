@@ -25,3 +25,17 @@
 @media print{.regional-balance{position:fixed;top:20px;left:20px;right:20px}.map-heading{display:none}.legend{display:block!important}.regional-balance button{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 
 .cluster-icon>div.regional-cluster.external-cluster{background:#fff;border-color:#006241;color:#006241;opacity:.62;box-shadow:0 0 0 4px #ffffff80}.regional-cluster.external-cluster>span{background:transparent}
+
+/* 4.1 · Solo el fondo usa los cinco colores geográficos. */
+.legend{width:225px;max-height:calc(100% - 375px);overflow:auto;scrollbar-width:thin}
+.legend .regional-key{gap:9px;margin-top:12px}.legend-title{font-size:8px;letter-spacing:.65px}.legend-title span{font-size:8px}.pin-shape-note{font-size:8px;color:#74866e;margin-top:11px}
+.cartography-legend{margin-top:15px;padding-top:13px;border-top:1px solid #dce5d5}.cartography-legend .legend-title{color:#45633f;font-size:8px;letter-spacing:.55px}.cartography-legend p{font-size:9px;color:#7a8b72;margin:6px 0 10px}.cartography-swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:9px 7px}.cartography-swatches span{display:flex;align-items:center;gap:5px;font-size:9px;white-space:nowrap;color:#48603f}.cartography-swatches i{width:11px;height:11px;display:block;border-radius:3px;flex-shrink:0;opacity:.85}.cartography-legend>small{font-size:8px;display:block;margin-top:10px;line-height:1.45;color:#84927b}
+.geographic-zone-label{background:transparent!important;border:0!important;pointer-events:none!important;text-align:center}.geographic-zone-label>span{display:inline-block;padding:4px 8px 4px 9px;font-size:11px;font-weight:700;letter-spacing:1.15px;text-transform:uppercase;background:#fffefbd9;border-left:3px solid var(--zone);border-radius:3px;color:#3f5542;box-shadow:0 1px 6px #25423012;line-height:1.3;white-space:nowrap}
+.zone-key{display:grid;grid-template-columns:repeat(3,1fr);gap:11px 7px;padding:15px 0;border-top:1px solid #e4eadf;border-bottom:1px solid #e4eadf;margin:15px 0;font-size:11px}.zone-key>span{display:flex;gap:6px;align-items:center}.zone-key i{display:block;width:12px;height:12px;border-radius:3px}.cartography-explanation{font-size:11px;color:#60774f;background:#eef4e8;border-radius:7px;padding:12px;line-height:1.7}.selected-zone-info{margin-top:12px;font-size:11px;color:#6e8061;line-height:1.8}.selected-zone-info b{color:#42603b}
+.has-inspector .legend{max-width:225px}.view-helper{font-size:9px}
+@media(max-width:1250px){.legend{width:211px}.has-inspector .legend{display:none}.cartography-swatches{gap:8px 5px}.cartography-swatches span{font-size:8px}}
+@media(max-width:930px){.legend{width:195px;max-height:calc(100% - 405px);padding:13px}.cartography-swatches{grid-template-columns:repeat(2,1fr)}.cartography-legend{margin-top:12px;padding-top:11px}.cartography-swatches span{font-size:9px}.geographic-zone-label>span{font-size:10px}}
+@media(max-width:680px){.legend{width:187px;max-height:calc(100% - 380px);bottom:100px;padding:12px}.legend .regional-key{gap:8px}.cartography-legend p{font-size:8px}.cartography-legend>small{font-size:7px}.cartography-legend .legend-title{font-size:7px}.geographic-zone-label>span{font-size:9px;padding:4px 6px;letter-spacing:.7px}.region-route small{font-size:7px;letter-spacing:.4px}}
+@media print{.legend{max-height:none;overflow:visible}}
+
+.map-extent-link{font-size:8px;color:#416b45;border:0;padding:6px 0 0;min-height:22px;background:none;display:block;text-align:left;font-weight:500}.cartography-extent{margin-top:9px;font-size:10px;min-height:32px;width:100%}
