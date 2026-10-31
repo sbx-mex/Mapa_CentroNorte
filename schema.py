@@ -9,6 +9,8 @@ METRIC_HEADERS = [
     "CC", "Corte YTD", "Rolling", "TPLH", "IPLH", "Labor", "Dif Labor",
     "Ventas MXN", "Dif Ppto", "OMT", "NPS", "Conexión", "Bebida", "CTC",
     "Costo", "Dif Costo", "EBITDA", "Dif EBITDA", "DT Time", "Tiempo DT AA",
+    "Corte Perfil", "Corte Negocio", "Meses Perfil", "Meses Negocio",
+    "Fuente Indicadores", "Fuente Commit", "Fuente SHA256",
 ]
 
 LOCATION_MAP = {
@@ -54,6 +56,13 @@ METRIC_MAP = {
     "Dif EBITDA": "ebitda_variance_pct",
     "DT Time": "dt_time",
     "Tiempo DT AA": "dt_time_aa",
+    "Corte Perfil": "profile_cutoff",
+    "Corte Negocio": "business_cutoff",
+    "Meses Perfil": "profile_months",
+    "Meses Negocio": "business_months",
+    "Fuente Indicadores": "metric_source",
+    "Fuente Commit": "metric_commit",
+    "Fuente SHA256": "metric_source_sha256",
 }
 
 PERCENT_FIELDS = {
@@ -62,5 +71,5 @@ PERCENT_FIELDS = {
     "cost_variance_pct", "ebitda_pct", "ebitda_variance_pct",
 }
 
-NUMBER_FIELDS = {"tplh", "iplh", "sales_mxn", "omt", "nps", "latitude", "longitude"}
+NUMBER_FIELDS = {"tplh", "iplh", "sales_mxn", "omt", "nps", "latitude", "longitude", "profile_months", "business_months"}
 

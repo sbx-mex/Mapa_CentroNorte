@@ -5,6 +5,24 @@ const clone=x=>JSON.parse(JSON.stringify(x)),base=clone(context.window.MAPA_BASE
 const homeStats=health.regions.find(r=>r.region===C.REGION),openTotal=health.counts.open,regionOpen=r=>health.regions.find(x=>x.region===r).open;
 const row={CC:'70001','Nombre Tienda':'Prueba',DM:'DM futuro','Fecha Apertura':'',Municipio:'Tepotzotlán',Cobertura:'Estado De México',Latitud:'19.74010',Longitud:'-99.21133',Activa:'Sí'};
 
+test('planeación incluye las tres aperturas de Centro Norte sin sumarlas a abiertas',()=>{
+ const stores=C.current(base,C.freshState(),'base').filter(C.isPlannable),cn=stores.filter(s=>s.region===C.REGION);
+ assert.equal(cn.filter(C.isOpen).length,homeStats.open);
+ assert.equal(cn.filter(C.isOpening).length,homeStats.openings);
+ assert.ok(['43300','43301','43302'].every(cc=>cn.some(s=>s.cc===cc&&C.hasPoint(s))));
+ assert.ok(stores.every(s=>!['Cierre Temporal','Cierre Definitivo'].includes(s.operating_status)));
+});
+test('ceder una apertura cambia su conteo específico y se conserva al exportar',()=>{
+ const item=base.stores.find(s=>s.region===C.REGION&&C.isOpening(s)),state=C.freshState();
+ state.updates[item.cc]=C.proposalUpdate(item,'Centro Sur');
+ const rows=C.regionalCounts(base,state),cn=rows.find(s=>s.region===C.REGION),cs=rows.find(s=>s.region==='Centro Sur');
+ assert.equal(cn.total,homeStats.open);assert.equal(cn.openings,homeStats.openings-1);
+ assert.equal(cs.openings,C.regionalCounts(base,C.freshState()).find(s=>s.region==='Centro Sur').openings+1);
+ const csv=C.csv(base,state,{planningOnly:true});assert.ok(csv.includes('"'+item.cc+'"'));
+ assert.equal(csv.split('\r\n').length,base.stores.filter(C.isPlannable).length+1);
+ assert.equal(C.readScenario(clone(C.pack(base,state)),base,geo).state.updates[item.cc].region,'Centro Sur');
+});
+
 test('base y revisión Python coinciden sin fijar el número futuro de tiendas o DM',()=>{
  assert.equal(base.stores.length,base.metadata.store_count);assert.equal(new Set(base.stores.map(s=>s.cc)).size,base.stores.length);assert.equal(health.counts.total,base.stores.length);assert.equal(health.counts.dms,new Set(base.stores.map(s=>s.dm)).size);assert.equal(base.metadata.signature,health.signature);assert.equal(health.status,'valid');
 });

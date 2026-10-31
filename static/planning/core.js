@@ -11,6 +11,8 @@
   const zoneColors = {Norte:'#38859a', Poniente:'#768c56', Centro:'#00704a', Oriente:'#d39236', Sur:'#a05279'};
   const regionColors = {'Centro Norte':'#006241','Centro Sur':'#b04270','Centro Poniente':'#7453a6','Centro Centro':'#2876b2','Bajío':'#c26a16'};
   const isOpen = s => s.status==='Actual' && s.active!==false && (!s.operating_status||s.operating_status==='Abierta');
+  const isOpening = s => s.status==='Apertura' && s.active!==false;
+  const isPlannable = s => isOpen(s)||isOpening(s);
   const hasPoint = s => !!s && validPoint(s.latitude,s.longitude);
   function directoryTree(base,search=''){
     const query=norm(search);
@@ -22,7 +24,8 @@
     return regions.map(region=>{
       const before=original.filter(s=>s.region===region),included=proposed.filter(s=>inRegion(s,region));
       const incoming=included.filter(s=>s.origin_region!==region),outgoing=proposed.filter(s=>s.origin_region===region&&!inRegion(s,region));
-      return {region,base:before.length,total:included.length,delta:included.length-before.length,incoming:incoming.length,outgoing:outgoing.length,available:before.length>0,stores:included,dms:[...new Set(included.map(s=>s.dm))].map(dm=>({dm,total:included.filter(s=>s.dm===dm).length}))};
+      const openings=current(base,state,view).filter(s=>isOpening(s)&&inRegion(s,region));
+      return {region,base:before.length,total:included.length,openings:openings.length,baseOpenings:base.stores.filter(s=>isOpening(s)&&s.region===region).length,delta:included.length-before.length,incoming:incoming.length,outgoing:outgoing.length,available:before.length>0,stores:included,dms:[...new Set(included.map(s=>s.dm))].map(dm=>({dm,total:included.filter(s=>s.dm===dm).length}))};
     });
   }
   function reconcileState(previous,base,geo) {
@@ -195,7 +198,7 @@
     });
   }
   function filtered(stores,filter) {
-    return stores.filter(s=>(!filter.search || norm([s.cc,s.store_name,s.dm,dmLabel(s.dm),s.region,s.origin_region,s.municipality,s.geo_municipality].join(' ')).includes(norm(filter.search))) && (!filter.dm||s.dm===filter.dm)&&(!filter.zone||s.zone===filter.zone)&&(!filter.status||s.status===filter.status)&&(!filter.decision||s.movement===filter.decision||s.decision===filter.decision)&&(!filter.region||s.region===filter.region)&&(!filter.origin||s.origin_region===filter.origin)&&(!filter.scope||filter.scope==='all'||(filter.scope==='home'&&inRegion(s))||(filter.scope==='moves'&&(s.region!==s.origin_region||s.decision==='No considerar'))||(filter.scope==='external'&&s.origin_region!==REGION)||(filter.scope==='outgoing'&&s.origin_region===REGION&&!inRegion(s))));
+    return stores.filter(s=>(!filter.search || norm([s.cc,s.store_name,s.dm,dmLabel(s.dm),s.dm_directory,s.region,s.origin_region,s.municipality,s.geo_municipality].join(' ')).includes(norm(filter.search))) && (!filter.dm||s.dm===filter.dm)&&(!filter.zone||s.zone===filter.zone)&&(!filter.status||s.status===filter.status)&&(!filter.decision||s.movement===filter.decision||s.decision===filter.decision)&&(!filter.region||s.region===filter.region)&&(!filter.origin||s.origin_region===filter.origin)&&(!filter.scope||filter.scope==='all'||(filter.scope==='home'&&inRegion(s))||(filter.scope==='moves'&&(s.region!==s.origin_region||s.decision==='No considerar'))||(filter.scope==='external'&&s.origin_region!==REGION)||(filter.scope==='outgoing'&&s.origin_region===REGION&&!inRegion(s))));
   }
   function nearest(store,stores,n=3) {if(!hasPoint(store))return [];return stores.filter(s=>s.cc!==store.cc&&hasPoint(s)).map(s=>({...s,km:distance(store,s)})).sort((a,b)=>a.km-b.km).slice(0,n);}
   function validateBase(base) {
@@ -242,8 +245,8 @@
   function csv(base,state,settings={}) {
     const byId=new Map(base.stores.map(s=>[s.cc,s]));
     const headers=['CeCo','Tienda','Región origen','Región propuesta','Movimiento','En Centro Norte propuesta','Estatus','Fecha apertura','Municipio Excel','Municipio por coordenada','DM base','DM propuesta','Zona base','Zona propuesta','Decisión','Notas','Latitud base','Longitud base','Latitud propuesta','Longitud propuesta','DM directorio','Estatus operativo','Fuente Región DM'];
-    const rows=current(base,state).filter(s=>!settings.openOnly||isOpen(s)).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude,b.dm_directory||'',b.operating_status||'',b.directory_source||''];});
+    const rows=current(base,state).filter(s=>(!settings.openOnly||isOpen(s))&&(!settings.planningOnly||isPlannable(s))).map(s=>{const b=byId.get(s.cc);return [s.cc,s.store_name,b.region,s.region,s.movement,inRegion(s)?'Sí':'No',s.status,s.opening_date||'',s.municipality,s.geo_municipality,b.dm,s.dm,b.zone,s.zone,s.decision,s.notes,b.latitude,b.longitude,s.latitude,s.longitude,b.dm_directory||'',b.operating_status||'',b.directory_source||''];});
     return '\uFEFF'+[headers,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
   }
-  return {REGION,decisions,regions,rules,regionColors,isOpen,hasPoint,directoryTree,regionalCounts,reconcileState,auditRegions,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
+  return {REGION,decisions,regions,rules,regionColors,isOpen,isOpening,isPlannable,hasPoint,directoryTree,regionalCounts,reconcileState,auditRegions,originRegion,dmLabel,inRegion,movement,proposalUpdate,balance,zones,zoneColors,mapZone,cartographicStyle,setMapZone,dmColors,palette,clean,norm,escape,coordinate,validPoint,distance,contains,findArea,suggestedRegion,signature,excelDate,parseLocations,freshState,current,filtered,nearest,validateBase,readScenario,pack,csv};
 });

@@ -1,70 +1,72 @@
-# Centro Norte · CMS y directorio regional 4.4
+# Centro Norte · Región y directorio 4.5
 
-Un solo Excel define **Región → DM → Tienda** para mapa, directorio y datos derivados. La región de origen se respeta: no se deduce de la ubicación ni cambia por ocultar una capa. Las propuestas se guardan aparte.
+**Región** reúne filtro, directorio y tiendas en un mismo menú. El mapa abre con **73 abiertas y las tres aperturas de Centro Norte**. El Excel CMS conserva las asignaciones originales de las cinco regiones.
 
-## Directorio integrado
+## Usar el mapa
 
-| Región | Abiertas | Color de pin |
-| --- | ---: | --- |
-| Centro Norte | 73 | Verde |
-| Centro Sur | 100 | Frambuesa |
-| Centro Poniente | 100 | Violeta |
-| Centro Centro | 86 | Azul |
-| Bajío | 96 | Ámbar |
-| Total | 455 | Cinco regiones |
+1. Abre **Región**, elige región Starbucks y despliega un **DM**.
+2. Busca por tienda, DM completo, municipio o CeCo. Pulsa una tienda para ubicarla; **Centrar este DM** ajusta el mapa a su equipo.
+3. Elige **Región propuesta** y guarda. **Base actual** conserva origen; **Mi propuesta** actualiza destino, pin y conteos.
+4. **Validar datos**, dentro de Región, muestra ubicaciones e indicadores disponibles. **Auditoría** mantiene la revisión territorial orientativa de abiertas.
 
-El botón **Directorio** despliega cada región, sus DM y las tiendas del DM. Centro Norte abre primero; Enrique César tiene diez abiertas y Nancy Rodríguez trece. La búsqueda admite región, DM, nombre o CeCo. Pulsar una tienda la ubica en el mapa. El botón **Región** conserva los filtros y span por DM.
+Hay una sola lista con desplazamiento. Los DM desplegados y la selección se conservan durante la navegación. **Ocultar menús** libera la pantalla y conserva borradores. La ficha vuelve al directorio con **Región / DM**. La tienda enfocada mantiene su pin al cambiar de destino, aunque quede fuera del filtro actual.
 
-El directorio de origen permanece igual aunque una tienda se proponga para otra región. En Mi propuesta, el pin usa el color del destino y los conteos cambian al guardar. El selector de DM ofrece responsables de la región destino; una tienda puede quedar **Por asignar**. La región y DM de origen siguen disponibles en la ficha y exportación.
+Las aperturas usan pin **+** y borde discontinuo. Se pueden ubicar, seleccionar y proponer; se cuentan aparte de las abiertas.
 
-Solo las abiertas activas aparecen en el mapa y el directorio desplegable. El CMS conserva **482 registros: 455 abiertas, cinco próximas aperturas, ocho cierres temporales y 14 cierres definitivos**. Ocho registros figuran abiertos en Alsea y con cierre temporal en Ops: se conserva el estatus más específico de Ops, el estatus Alsea y una observación. No se oculta la diferencia ni se inventa una reapertura.
+| Región | Abiertas | Aperturas |
+| --- | ---: | ---: |
+| Centro Norte | 73 | 3 |
+| Centro Sur | 100 | 0 |
+| Centro Poniente | 100 | 0 |
+| Centro Centro | 86 | 0 |
+| Bajío | 96 | 2 |
+| Total | 455 | 5 |
 
-## Un Excel CMS
+Centro Norte incluye **GasoSur Dt 43300**, **Plaza Centella 43301** y **Toreo Walmart 43302** (nombre conservado del CMS: Toreo Waltmar). Toreo mantiene exactamente **19.4506098125196, -99.2180774805589**. No se estiman coordenadas ni indicadores faltantes. Los 22 cierres permanecen en el CMS, fuera de la planeación visible; se conserva el cierre temporal de Ops cuando difiere de Alsea.
+
+## Un solo Excel CMS
 
 Archivo: `cms/Mapa_CentroNorte_CMS.xlsx`.
 
-- **Inicio:** resumen conectado de abiertas, ubicables, pendientes, aperturas y cierres por región.
-- **Ubicaciones:** tabla maestra. Primero Región, DM, CeCo, Tienda y Estatus; después fecha, municipio, coordenadas y datos operativos. Contiene listas de región, DM dependiente de región, estatus y activa.
-- **Indicadores:** se conservan los 72 registros y sus datos originales. Las nuevas tiendas no reciben indicadores inventados.
-- **Catalogos:** pares Región/DM válidos, nombre completo de directorio y etiqueta para mostrar en la interfaz. Al dar de alta un DM, insértalo junto a los de su región.
-- **Validacion:** identifica combinación Región/DM, CeCo duplicado y disponibilidad de ubicación.
+- **Ubicaciones:** 482 registros, Región, DM, CeCo, Tienda, estatus y coordenadas. Listas de región y DM dependiente conservadas.
+- **Indicadores:** datos reales por CeCo desde **sbx-mex/Perfil_Tienda_DM**, con cortes propios de operación y negocio, meses disponibles y fuente. Las 455 abiertas tienen datos; las aperturas permanecen sin indicadores.
+- **Catalogos:** combinaciones Región/DM, nombres completos, etiquetas y fuentes.
+- **Inicio / Validacion:** resumen conectado y revisión de identificadores, jerarquía y ubicación. Las aperturas con coordenadas y activas también figuran como ubicables.
 
-Los nombres cortos existentes se conservan para recuperar propuestas previas; el nombre completo del directorio queda separado. `Mostrar como` controla la etiqueta visible. La combinación Región/DM se valida antes de generar o publicar; un error bloquea la actualización.
+Se reconstruyó el perfil desde los motores del commit `2a6b0d21379739482f0b4c7be9b0f9a022e15f5b`, porque la instantánea publicada terminaba antes que el XLSX fuente. Operación y ventas llegan a **septiembre de 2026**. No se trasladan datos personales de partners.
 
-Las coordenadas existentes se conservan. Los puntos recibidos completan las otras tiendas y el directorio Alsea aporta las coordenadas faltantes cuando están disponibles. Una abierta sin coordenadas permanece en el directorio y el conteo, con ubicación pendiente y sin pin estimado. Las 455 abiertas entregadas tienen coordenadas. Toreo Walmart 43302 mantiene **19.4506098125196, -99.2180774805589** y su confirmación; sigue como próxima apertura fuera del conteo de abiertas.
+Venta suma meses disponibles; rotación usa el último dato; otros indicadores promedian valores disponibles. Diferencias de Labor, Costo y EBITDA usan meses con ambos datos. Venta vs. presupuesto: suma real / suma PPTO − 1 en meses comparables. OMT: diferencia vs. AA del motor de negocio. **NPS y CTC quedan vacíos**, sin sustituirlos por otro indicador.
 
-## Aplicar esta actualización
+Para preparar otra actualización desde un `dashboard.json` validado de Perfil:
 
-Incremental sobre **4.3**, commit `794488d128c5d37b5a3028769084a766db1c98e1`, repositorio `sbx-mex/Mapa_CentroNorte`.
+```bash
+python tools/preparar_indicadores.py --perfil /ruta/dashboard.json --commit COMMIT_FUENTE --output Indicadores.csv
+```
 
-1. Extrae `Mapa_CentroNorte_CMS_Integrado_4_4_0.zip`.
-2. Copia el contenido a la **raíz del proyecto existente**, conservando carpetas y reemplazando coincidencias. Incluye el workflow de `.github/workflows/ci.yml`.
-3. Sube los archivos extraídos al repositorio.
-4. Para la actualización automática desde Excel, selecciona **Settings → Pages → Build and deployment → Source: GitHub Actions** una sola vez. El workflow incluido reemplaza la publicación directa desde una rama.
-
-Después basta reemplazar `cms/Mapa_CentroNorte_CMS.xlsx` en el repositorio. Actions genera mapa y directorio, ejecuta las pruebas, prepara el sitio y publica el resultado validado. No cambia asignaciones del Excel ni escribe commits generados en el repositorio. Un Pull Request valida sin publicar.
-
-La configuración de Pages se debe seleccionar en GitHub; el ZIP no cambia los ajustes de la cuenta. Guía oficial: https://docs.github.com/es/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
-
-Para actualizar localmente:
+Pega sus columnas en **Indicadores** del CMS. El comando conserva el universo CeCo del CMS y no modifica región, DM ni ubicación. Actualiza todas las vistas con:
 
 ```bash
 python ACTUALIZAR_MAPA.py --no-open
+python ACTUALIZAR_MAPA.py --check
 ```
 
-La misma ejecución actualiza `base.js`, `insights.js`, las referencias de `index.html`, `data/stores.json` y `data.csv`. El servidor Python también regenera el mapa al cargar un CMS válido. `/directorio` utiliza la misma interfaz, no una base alternativa. El sitio estático incluye `directorio/` y permite descargar el mismo Excel.
+Esta ejecución sincroniza mapa, directorio, JSON y CSV. Métricas no finitas, CeCo duplicados o relaciones Región/DM inválidas bloquean la actualización. El servidor Python restaura el CMS y sus derivados anteriores si una importación se interrumpe.
 
-## Conservar el avance
+## Instalar el ZIP
 
-La clave `centronorte-planning-v4` y los borradores se conservan. Al detectar la base ampliada, los CeCo existentes recuperan sus ajustes y se respalda el escenario anterior. Las propuestas sobre una tienda ahora cerrada permanecen en el respaldo y estado, fuera del mapa de abiertas. El guardado corresponde al mismo navegador y origen del sitio; exporta antes de borrar sus datos.
+Incremental sobre **4.4**, `sbx-mex/Mapa_CentroNorte`, commit **8e28526af7f675fe11b3efb0c2c6902713f7312d**.
 
-Base actual y Mi propuesta son independientes. El CSV de abiertas incluye origen, destino, DM, estatus operativo y fuente del directorio. El JSON conserva el escenario completo. Los borradores se aplican al pulsar Guardar. No se cambia automáticamente una región por posición, auditoría o DM.
+1. Extrae el ZIP en la **raíz del proyecto existente**, conservando carpetas y reemplazando coincidencias.
+2. Sube los archivos extraídos, incluida **.github/workflows/ci.yml**. No subas el ZIP como archivo único.
+3. Actualización automática solo desde CMS: selecciona una vez **Settings → Pages → Build and deployment → Source: GitHub Actions**. El workflow genera, prueba y publica; el ZIP no cambia ese ajuste de la cuenta.
 
-## Cartografía y auditoría
+Con Source en GitHub Actions basta sustituir el CMS en el repositorio. El paquete ya contiene los archivos generados de esta versión. Las pruebas locales pasan; la ejecución remota se comprueba al subir los archivos.
 
-Se mantienen los cinco colores del fondo y la acotación pequeña, sin rótulos grandes. Los límites municipales/de alcaldías son los ya incluidos del Marco Geoestadístico INEGI, diciembre de 2025. Centro, Norte, Poniente, Sur y Oriente son grupos por orientación, no una regionalización oficial ni regiones Starbucks.
+## Continuidad y cartografía
 
-El fondo municipal disponible no cubre todos los puntos de Bajío. Sus tiendas permanecen visibles; la auditoría indica la cobertura faltante, no una ubicación incorrecta por defecto. La auditoría es orientativa y no reasigna tiendas. Los colores de pines dependen de la región Starbucks.
+Se mantienen `centronorte-planning-v4`, borradores y respaldo anterior. Notas, DM, coordenadas y aperturas se conservan por CeCo. **Mis cambios** incluye tiendas con ajustes guardados y distingue abiertas y aperturas. El CSV incluye ambas con estatus; el JSON conserva toda la propuesta. El guardado depende del mismo navegador y origen; exporta antes de borrar sus datos.
+
+El fondo conserva cinco colores por orientación sobre los límites municipales INEGI incluidos. Centro, Norte, Poniente, Sur y Oriente son agrupaciones de referencia independientes de Starbucks. El color de pin corresponde a la región Starbucks de cada tienda. La auditoría no reasigna tiendas. El fondo disponible no cubre todos los municipios de Bajío.
 
 ## Comprobación
 
@@ -77,4 +79,4 @@ python -m unittest discover -s tests -v
 node --test tests/planning.test.cjs
 ```
 
-25 pruebas Python y 41 JavaScript. Se revisan coherencia de mapa/directorio, estatus explícito, jerarquía, filtros, continuidad, colores y propuestas. Los conteos de prueba comparan con controles independientes del CMS, permitiendo ampliar la base sin fijar las cifras actuales en el código. El paquete se comprueba sobre una copia limpia del commit de origen. La publicación y el resultado remoto se verifican al subirlo a GitHub.
+31 pruebas Python y 43 JavaScript. Se verifican indicadores, blanco vs. cero, periodos, recuperación de importaciones fallidas, aperturas, conteos y continuidad. Interfaz revisada en navegador, fórmulas recalculadas y controles nativos inspeccionados en el Excel exportado. No se ejecutó Excel de escritorio ni se publicó el repositorio desde esta entrega.

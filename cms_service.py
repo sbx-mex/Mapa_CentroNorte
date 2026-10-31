@@ -5,10 +5,12 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 import os
 import re
 import shutil
 import tempfile
+import threading
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -41,6 +43,8 @@ LEGACY_FIELDS = {
     "Formato": "format", "Formato - Comercial": "commercial_format", "TIER": "tier",
     "Corte YTD": "cutoff_ytd", "Latitud": "latitude", "Longitud": "longitude",
 }
+
+CMS_LOCK=threading.RLock()
 
 
 class CMSValidationError(ValueError):
@@ -84,10 +88,44 @@ def _to_float(value: Any, label: str, errors: list[str], allow_none: bool = True
     if value is None and allow_none:
         return None
     try:
-        return float(value)
+        number=float(value)
+        if not math.isfinite(number):raise ValueError()
+        return number
     except (TypeError, ValueError):
         errors.append(f"{label}: debe ser numérico")
         return None
+
+
+def read_metrics(path: str | Path, known: set[str]) -> dict[str, dict[str, Any]]:
+    """Una lectura para mapa, directorio y CSV. Un vacío nunca se convierte en cero."""
+    try:
+        metrics,metric_date1904=read_sheet(Path(path),'Indicadores')
+    except ValidationError as exc:
+        if 'Falta la hoja Indicadores.' not in str(exc):raise
+        metrics=[];metric_date1904=False
+    errors=[];metric_by_cc={}
+    for line,row in metrics:
+        cc=str(row.get('CC') or '').strip()
+        if not cc and not any(str(row.get(k) or '').strip() for k in METRIC_MAP):continue
+        if not cc:errors.append('Indicadores fila '+str(line)+': CC obligatorio');continue
+        if cc in metric_by_cc:errors.append('Indicadores: CC duplicado '+cc)
+        metric_by_cc[cc]=row
+    orphan=sorted(set(metric_by_cc)-known)
+    if orphan:errors.append('Indicadores sin ubicación: '+', '.join(orphan[:12]))
+    result={}
+    for cc,metric in metric_by_cc.items():
+        store={}
+        for header,field in METRIC_MAP.items():
+            if field=='cc':continue
+            value=metric.get(header)
+            if header in ('Corte YTD','Corte Perfil','Corte Negocio'):
+                try:store[field]=excel_date(value,metric_date1904)
+                except ValidationError:errors.append(header+' inválido para '+cc)
+            elif field in NUMBER_FIELDS|PERCENT_FIELDS:store[field]=_to_float(value,'CC '+cc+' '+field,errors)
+            else:store[field]=_clean(value)
+        result[cc]=store
+    if errors:raise CMSValidationError(errors)
+    return result
 
 
 def workbook_to_payload(path: str | Path) -> dict[str, Any]:
@@ -98,36 +136,16 @@ def workbook_to_payload(path: str | Path) -> dict[str, Any]:
         geo=read_js(root/'static/planning/geography.js','MAPA_GEO')
         stores,_,_=normalize_rows(rows,geo,date1904,regional_rules(root))
         if any('Estatus' in row for _,row in rows):
-            pairs=catalog_pairs(Path(path))
-            validate_pairs(stores,pairs)
-        try:metrics,metric_date1904=read_sheet(Path(path),'Indicadores')
-        except ValidationError as exc:
-            if 'Falta la hoja Indicadores.' not in str(exc):raise
-            metrics=[];metric_date1904=False
+            validate_pairs(stores,catalog_pairs(Path(path)))
+        known={s['cc'] for s in stores}
+        metric_by_cc=read_metrics(path,known)
     except (ValidationError,ValueError,KeyError) as exc:
         raise CMSValidationError([str(exc)]) from exc
-    errors=[];metric_by_cc={}
-    for line,row in metrics:
-        cc=str(row.get('CC') or '').strip()
-        if not cc and not any(str(row.get(k) or '').strip() for k in METRIC_MAP):continue
-        if not cc:errors.append('Indicadores fila '+str(line)+': CC obligatorio');continue
-        if cc in metric_by_cc:errors.append('Indicadores: CC duplicado '+cc)
-        metric_by_cc[cc]=row
-    known={s['cc'] for s in stores}
-    orphan=sorted(set(metric_by_cc)-known)
-    if orphan:errors.append('Indicadores sin ubicación: '+', '.join(orphan[:12]))
     for store in stores:
-        metric=metric_by_cc.get(store['cc'],{})
-        for header,field in METRIC_MAP.items():
-            if field=='cc':continue
-            value=metric.get(header)
-            if header=='Corte YTD':
-                try:store[field]=excel_date(value,metric_date1904)
-                except ValidationError:errors.append('Corte YTD inválido para '+store['cc'])
-            elif field in NUMBER_FIELDS|PERCENT_FIELDS:store[field]=_to_float(value,'CC '+store['cc']+' '+field,errors)
-            else:store[field]=_clean(value)
-    if errors:raise CMSValidationError(errors)
-    return {'metadata':{'schema_version':3,'updated_at':datetime.now(timezone.utc).isoformat(),'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'locations_without_metrics':sorted(known-set(metric_by_cc))},'stores':stores}
+        store.update({field:None for field in METRIC_MAP.values() if field!='cc'})
+        store.update(metric_by_cc.get(store['cc'],{}))
+    covered={s['cc'] for s in stores if s.get('sales_mxn') is not None or s.get('iplh') is not None}
+    return {'metadata':{'schema_version':3,'updated_at':datetime.now(timezone.utc).isoformat(),'source':'cms/Mapa_CentroNorte_CMS.xlsx','store_count':len(stores),'locations_without_metrics':sorted(known-covered)},'stores':stores}
 
 
 def _backup(path: Path) -> None:
@@ -223,20 +241,29 @@ def apply_cms_workbook(
     database_path: str | Path,
     legacy_csv_path: str | Path | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
-    """Instala el Excel validado y actualiza todos sus derivados."""
+    """Instala el CMS completo; ante un fallo restaura la versión anterior."""
     workbook_to_payload(workbook_path)
     cms_path = Path(cms_path)
-    changed: list[str] = []
-    if _atomic_write(cms_path, Path(workbook_path).read_bytes()):
-        changed.append(str(cms_path))
-    payload, output_changes = synchronize_outputs(cms_path, database_path, legacy_csv_path)
-    changed.extend(output_changes)
     root=cms_path.parent.parent
-    if cms_path.parent.name=='cms' and (root/'static/planning/geography.js').is_file():
-        from ACTUALIZAR_MAPA import main
-        if main(['--root',str(root),'--no-open'])!=0:raise CMSValidationError(['No se pudo regenerar el mapa del mismo CMS.'])
-        changed.extend(str(root/f) for f in ('index.html','static/planning/base.js','static/planning/insights.js'))
-    return payload, changed
+    map_files=[root/f for f in ('index.html','static/planning/base.js','static/planning/insights.js')] if cms_path.parent.name=='cms' and (root/'static/planning/geography.js').is_file() else []
+    affected=[cms_path,Path(database_path),*([Path(legacy_csv_path)] if legacy_csv_path else []),*map_files]
+    with CMS_LOCK:
+        before={path:path.read_bytes() if path.exists() else None for path in affected}
+        try:
+            changed=[]
+            if _atomic_write(cms_path,Path(workbook_path).read_bytes()):changed.append(str(cms_path))
+            payload,output_changes=synchronize_outputs(cms_path,database_path,legacy_csv_path)
+            changed.extend(output_changes)
+            if map_files:
+                from ACTUALIZAR_MAPA import main
+                if main(['--root',str(root),'--no-open'])!=0:raise CMSValidationError(['No se pudo regenerar el mapa; se conserva la versión anterior.'])
+                changed.extend(str(path) for path in map_files)
+            return payload,changed
+        except Exception:
+            for path,raw in before.items():
+                if raw is None:path.unlink(missing_ok=True)
+                else:_atomic_write(path,raw,backup=False)
+            raise
 
 
 def update_database(workbook_path: str | Path, database_path: str | Path) -> dict[str, Any]:

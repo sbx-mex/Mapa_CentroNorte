@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#006241">
-  <meta name="description" content="Regiones Starbucks, tiendas abiertas y propuestas guardadas. Filtra por región, consulta el span por DM y revisa la cobertura en un solo mapa.">
+  <meta name="description" content="Regiones Starbucks, directorio por DM, tiendas y aperturas con propuestas guardadas. Filtra por región, consulta el span por DM y revisa la cobertura en un solo mapa.">
   <title>Centro Norte · Regional de tiendas</title>
   <link rel="icon" href="static/planning/compass.svg" type="image/svg+xml">
   <link rel="stylesheet" href="static/vendor/leaflet.css">
@@ -12,20 +12,20 @@
   <link rel="stylesheet" href="static/planning/planning.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/quality.css?v=4.0.0">
   <link rel="stylesheet" href="static/planning/regional.css?v=4.1.0">
-  <link rel="stylesheet" href="static/planning/map-view.css?v=4.4.0">
+  <link rel="stylesheet" href="static/planning/map-view.css?v=4.5.0">
   <script defer src="static/vendor/leaflet.js"></script>
   <script defer src="static/vendor/leaflet.markercluster.js"></script>
   <script defer src="static/planning/geography.js"></script>
-  <script defer src="static/planning/base.js?v=d7bbbc61789e1fc6653b-70e3e808"></script>
-  <script defer src="static/planning/insights.js?v=d7bbbc61789e1fc6653b-70e3e808"></script>
-  <script defer src="static/planning/core.js?v=4.4.0"></script>
-  <script defer src="static/planning/app.js?v=4.4.0"></script>
+  <script defer src="static/planning/base.js?v=627b6c325b7ba571d51b-c10e2bd8"></script>
+  <script defer src="static/planning/insights.js?v=627b6c325b7ba571d51b-c10e2bd8"></script>
+  <script defer src="static/planning/core.js?v=4.5.0"></script>
+  <script defer src="static/planning/app.js?v=4.5.0"></script>
 </head>
 <body class="map-first region-planner">
   <a class="skip-link" href="#search">Buscar una tienda</a>
   <header class="topbar">
     <a class="brand" href="#" aria-label="Centro Norte, inicio"><img src="static/planning/compass.svg" alt=""><span>CENTRO NORTE<small>REGIONAL · SPAN DE TIENDAS</small></span></a>
-    <span class="header-context">Tiendas abiertas <i>·</i> Asignación regional</span>
+    <span class="header-context">Tiendas y aperturas <i>·</i> Planeación regional</span>
     <nav class="header-actions" aria-label="Acciones de propuesta">
       <button id="reviewBtn" class="health-badge" aria-label="Revisar base de datos"><span class="health-dot"></span><span id="healthText">Validando…</span></button>
       <button id="summaryBtn" class="secondary">Mis cambios <b id="changesCount">0</b></button>
@@ -36,25 +36,24 @@
   <button id="menusToggle" class="menus-toggle" aria-pressed="false" aria-label="Ocultar menús y ampliar el mapa"><span class="menu-toggle-icon" aria-hidden="true">⛶</span><span id="menusToggleText">Ocultar menús</span></button>
   <main class="workspace">
     <aside class="sidebar" id="sidebar" aria-label="Filtrar por región y DM" hidden>
-      <div class="sidebar-heading"><button id="closeListBtn" class="close-list" aria-label="Cerrar región">×</button><div class="eyebrow">STARBUCKS · TIENDAS ABIERTAS</div><h1>Región</h1></div>
+      <div class="sidebar-heading"><button id="closeListBtn" class="close-list" aria-label="Cerrar región">×</button><div class="eyebrow" id="directoryContext">BASE ACTUAL · DIRECTORIO</div><h1>Región</h1><p>Elige región, despliega un DM y ubica su tienda.</p></div>
       <div class="filters">
         <label class="region-select-label">Región Starbucks<select id="regionFilter"><option value="">Todas las disponibles</option></select></label>
-        <div id="scopeSummary" class="scope-summary"></div>
-        <details class="dm-span"><summary>Desplegar DM <b id="dmCount">0</b></summary><div id="dmSpan"></div><label>Filtrar DM<select id="dmFilter"><option value="">Todos los DM</option></select></label></details>
-        <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar tienda o CeCo" autocomplete="off" aria-label="Buscar tienda, CeCo, DM o municipio"><span class="key">/</span></label>
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar DM, tienda o CeCo" autocomplete="off" aria-label="Buscar tienda, CeCo, DM o municipio"><span class="key">/</span></label>
+        <div class="directory-options"><label><input id="includeOpenings" type="checkbox" checked>Ver aperturas <b id="openingCount">3</b></label><button id="clearFilters" class="link-button">Limpiar</button></div>
+        <div id="activeDm" class="active-dm" hidden></div>
         <details class="more-filters"><summary>Más filtros <span aria-hidden="true">+</span></summary><div class="filter-grid"><label>Zona del fondo<select id="zoneFilter"><option value="">Todas las zonas</option></select></label><label>Movimiento<select id="decisionFilter"><option value="">Todas las decisiones</option></select></label></div><button id="backgroundBtn" class="link-button">Ajustar fondo INEGI</button></details>
-        <div class="filter-actions"><span id="filterCount"></span><button id="clearFilters" class="link-button">Ver todas</button></div>
+        <div class="filter-actions"><span id="filterCount"></span><button id="expandDms" class="link-button">Desplegar DM</button></div>
       </div>
-      <div class="list-tools"><label class="select-visible"><input type="checkbox" id="selectVisible">Seleccionar visibles</label><select id="sortSelect" aria-label="Orden del listado"><option value="cc">Por CeCo</option><option value="region">Por región</option><option value="dm">Por DM</option></select></div>
-      <div class="store-list" id="storeList" aria-label="Tiendas abiertas"></div>
-      <div class="sidebar-footer"><span>Solo tiendas abiertas</span><div id="completionMeter" class="completion-meter"></div></div>
+      <div class="list-tools"><label class="select-visible"><input type="checkbox" id="selectVisible">Seleccionar visibles</label><button id="fitDirectory" class="link-button">Centrar ↗</button></div>
+      <div class="store-list" id="storeList" aria-label="Directorio por región, DM y tienda"></div>
+      <div class="sidebar-footer"><button id="validateDirectory" class="link-button">Validar datos</button><a href="cms/Mapa_CentroNorte_CMS.xlsx" download>Excel CMS ↓</a></div>
     </aside>
     <section class="map-workspace" aria-label="Mapa de tiendas y propuesta regional">
-      <div id="map" role="region" aria-label="Tiendas abiertas con pines por región Starbucks y fondo geográfico INEGI"></div>
+      <div id="map" role="region" aria-label="Tiendas y aperturas con pines por región Starbucks y fondo geográfico INEGI"></div>
       <nav class="map-launchers" aria-label="Controles del mapa">
         <button id="mobileListBtn" aria-expanded="false" aria-controls="sidebar"><span aria-hidden="true">☰</span> Región</button>
         <div class="view-switch" role="group" aria-label="Comparar base actual y propuesta"><button data-view="base" aria-pressed="true">Base actual</button><button data-view="proposal" aria-pressed="false">Mi propuesta</button></div>
-        <button id="directoryBtn"><span aria-hidden="true">⌄</span> Directorio</button>
         <button id="auditBtn"><span aria-hidden="true">◎</span> Auditoría <b id="auditCount">0</b></button>
       </nav>
       <div id="storeCounter" class="store-counter" aria-live="polite"></div>

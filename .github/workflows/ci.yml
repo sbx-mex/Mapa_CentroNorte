@@ -1,11 +1,16 @@
-name: Validación de propuesta regional
+name: CMS único · validar y publicar
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: cms-pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -20,14 +25,40 @@ jobs:
         with:
           node-version: "22"
       - run: pip install -r requirements.txt
-      - run: python -m compileall -q .
-      - name: Validar Excel, regiones y balance de Centro Norte
-        run: python ACTUALIZAR_MAPA.py --check
-      - name: Comprobar scripts de navegación
+      - name: Generar mapa y directorio desde el único CMS
+        run: python ACTUALIZAR_MAPA.py --no-open
+      - name: Validar CMS, regiones, DM y datos derivados
         run: |
+          python -m compileall -q .
+          python ACTUALIZAR_MAPA.py --check
           node --check static/planning/app.js
           node --check static/planning/core.js
-      - name: Pruebas Python y consistencia regional
+      - name: Pruebas Python y directorio
         run: PYTHONPATH=. python -m unittest discover -s tests -v
-      - name: Propuestas, tomar, ceder, aperturas y exportación
+      - name: Propuestas, continuidad y jerarquía Región DM Tienda
         run: node --test tests/planning.test.cjs
+      - name: Preparar el sitio validado
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: python tools/preparar_pages.py --output _site
+      - name: Guardar el sitio para Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+      - name: Publicar la versión validada
+        id: deployment
+        uses: actions/deploy-pages@v4
