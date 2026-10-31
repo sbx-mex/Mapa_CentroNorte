@@ -1,15 +1,24 @@
-DIRECTORIO INTEGRADO EN REGIÓN
+CENTRO NORTE 4.5 — REGIÓN Y DIRECTORIO
 
-Esta rama integra el código y conserva el CMS y los datos vigentes de main 4.4.
-La actualización de indicadores de septiembre se incorporará por separado.
+Extrae el ZIP en la raíz del proyecto 4.4, conserva carpetas y reemplaza coincidencias.
+Sube los archivos extraídos, incluida .github/workflows/ci.yml. No subas solo el ZIP.
 
-Región > DM > Tienda. Busca por CeCo o nombre, despliega un DM y ubica su tienda.
-Centro Norte: 73 abiertas + 3 aperturas identificadas con un pin +.
-Validar datos se encuentra dentro de Región. Se conservan propuestas y borradores.
+Región reúne todo: elige región, despliega DM, busca y ubica la tienda.
+Centro Norte muestra 73 abiertas + 3 aperturas. Pin + para aperturas, conteo separado.
+Validar datos está dentro de Región. El directorio ya no abre una ventana aparte.
 
-Actualizar vistas desde el CMS:
+Indicadores del último Perfil de Tienda disponible, reconstruido desde sus motores.
+Operación y ventas hasta septiembre de 2026. Fuente y cortes en el mismo Excel CMS.
+NPS, CTC y datos de aperturas permanecen vacíos cuando no existen en la fuente.
+
+Actualizar localmente:
   python ACTUALIZAR_MAPA.py --no-open
   python ACTUALIZAR_MAPA.py --check
 
-31 pruebas Python y 43 JavaScript. Los PR validan sin publicar.
-La publicación automatizada requiere Pages > Source > GitHub Actions.
+Actualizar únicamente el CMS en GitHub requiere seleccionar una vez:
+Settings > Pages > Build and deployment > Source: GitHub Actions.
+El workflow incluido regenera, prueba y publica; el ZIP no modifica ese ajuste.
+
+Propuestas y borradores conservados en el mismo navegador. Exporta CSV y JSON.
+74 pruebas locales aprobadas. GitHub se valida después de subir los archivos.
+Detalle en README.md y AUDITORIA_4_5.md.
